@@ -1,0 +1,19 @@
+[tasks.coverage]
+workspace = false
+alias = "llvm-cov"
+
+[tasks.llvm-cov]
+workspace = false
+command = "cargo"
+args = ["llvm-cov", "${@}"]
+
+[tasks.test]
+workspace = false
+command = "cargo"
+args = ["test", "${@}"]
+
+[tasks.mabel-dev]
+workspace = false
+env = { RUSTFLAGS = "-Awarnings" }
+command = "cargo"
+args = ["run", "-q", "--", "${@}"]

@@ -1,0 +1,31 @@
+[package]
+name = "mabel"
+version = "0.1.0"
+edition = "2021"
+authors = ["Hein Thant Maung Maung"]
+
+[lib]
+name = "mabel"
+path = "src/lib.rs"
+
+[dependencies]
+codespan-reporting = "0.11.1"
+fluent-templates = "0.9.4"
+serial_test = "3.1.1"
+sys-locale = "0.3.1"
+unic-langid = "0.9.5"
+
+[dependencies.chrono]
+version = "0.4.38"
+features = ["unstable-locales"]
+
+[dependencies.clap]
+version = "4.5.4"
+features = ["cargo"]
+
+[workspace]
+members = ["fuzz"]
+
+[lints.rust.unexpected_cfgs]
+level = "warn"
+check-cfg = ['cfg(fuzzing)', 'cfg(coverage_nightly)', 'cfg(coverage)']
