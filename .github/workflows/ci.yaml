@@ -8,7 +8,10 @@ env:
 jobs:
   setup:
     name: Run tests and create coverage report
-    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
@@ -26,5 +29,6 @@ jobs:
         uses: codecov/codecov-action@v4
         with:
           file: lcov.info
+          name: lcov-${{ matrix.os }}.info
           verbose: true
           token: ${{ secrets.CODECOV_TOKEN }}
