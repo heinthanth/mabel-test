@@ -94,14 +94,25 @@ pub fn get_os_locale() -> SystemLocale
 	// if it is not set, fallback to the locale of the system
 	match lang
 		.unwrap_or_else(|_| {
+			// this is for production, at least en-US should be
+			// returned
 			#[cfg(not(coverage))]
+			return get_locale()
+				.unwrap_or_else(|| "en-US".to_string());
+
+			// in Linux, we can write test cases to make
+			// `get_locale()` function return `None`
+			#[cfg(coverage)]
+			#[cfg(target_os = "linux")]
 			return get_locale()
 				.unwrap_or_else(|| "en-US".to_string());
 
 			// sometimes, we can't write test cases to make
 			// `get_locale()` function return `None` in platform
-			// like macOS
+			// like macOS, windows and will assume it's safe to
+			// unwrap
 			#[cfg(coverage)]
+			#[cfg(not(target_os = "linux"))]
 			return get_locale().unwrap();
 		})
 		.to_ascii_lowercase()
