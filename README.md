@@ -2,6 +2,7 @@
 
 [![CI](https://github.com/heinthanth/mabel/actions/workflows/ci.yaml/badge.svg?branch=main)](https://github.com/heinthanth/mabel/actions/workflows/ci.yaml)
 [![codecov](https://codecov.io/gh/heinthanth/mabel/branch/main/graph/badge.svg?token=L4P15DZ1UM)](https://codecov.io/gh/heinthanth/mabel)
+![Rust LOC](https://tokei.rs/b1/github/heinthanth/mabel?category=code&type=Rust&label=Lines%20of%20Rust%20Code&color=FF281C1C&logo=https://raw.githubusercontent.com/PKief/vscode-material-icon-theme/main/icons/rust.svg)
 
 This is the main repo for the WIP Mabel compiler.
 
@@ -29,6 +30,7 @@ cargo make test [...args]
 ### Coverage
 
 This is equivalent to running `cargo llvm-cov args`. [cargo-llvm-cov](https://github.com/taiki-e/cargo-llvm-cov) needs to be installed.
+As of now, `main.rs` and `compiler/mod.rs` are excluded from coverage since they are top-level modules and unit tests for child modules should be written first.
 
 ```
 cargo make coverage [...args]

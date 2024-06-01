@@ -12,6 +12,8 @@ pub mod utils;
 
 use std::path::PathBuf;
 
+use utils::{get_absolute_path, path_to_file_url};
+
 use crate::common::error::{Error, ErrorKind};
 use crate::common::utils::read_content_from_path;
 
@@ -246,6 +248,30 @@ impl Source
 	{
 		self.origin.get_path()
 	}
+
+	/// Create a source id from the source.
+	/// The source id is in the format such as
+	/// `mabel://stdin`, `mabel://REPL` or `file://path`.
+	///
+	/// # Returns
+	///
+	/// The source id.
+	pub fn source_id(&self) -> Result<String, Error>
+	{
+		match self.origin
+		{
+			SourceOrigin::String | SourceOrigin::Stdin =>
+			{
+				Ok("mabel://stdin".to_string())
+			}
+			SourceOrigin::REPL => Ok("mabel://REPL".to_string()),
+			SourceOrigin::File(ref path) =>
+			{
+				let abs_path = get_absolute_path(path.clone())?;
+				path_to_file_url(abs_path)
+			}
+		}
+	}
 }
 
 /// `Default` implementation for `Source`.
@@ -467,5 +493,51 @@ mod tests
 
 		assert_eq!(source.code, "");
 		assert_eq!(source.origin, SourceOrigin::String);
+	}
+
+	#[test]
+	fn test_get_source_id()
+	{
+		use crate::common::{Source, SourceOrigin};
+
+		let source = Source::from("1 + 32").with_origin(
+			SourceOrigin::File(std::path::PathBuf::from(
+				"test.mbl",
+			)),
+		);
+
+		assert_eq!(
+			source.source_id().unwrap(),
+			concat!(
+				"file://",
+				env!("CARGO_MANIFEST_DIR"),
+				"/test.mbl"
+			)
+		);
+
+		let source = Source::from("1 + 32")
+			.with_origin(SourceOrigin::Stdin);
+
+		assert_eq!(
+			source.source_id().unwrap(),
+			"mabel://stdin"
+		);
+
+		let source = Source::from("1 + 32")
+			.with_origin(SourceOrigin::REPL);
+
+		assert_eq!(source.source_id().unwrap(), "mabel://REPL");
+	}
+
+	#[test]
+	fn test_get_source_id_causing_error()
+	{
+		use crate::common::{Source, SourceOrigin};
+
+		let source = Source::from("1 + 32").with_origin(
+			SourceOrigin::File(std::path::PathBuf::from("")),
+		);
+		let error = source.source_id().unwrap_err();
+		assert_eq!(error.exit_code, ExitCode::IO_ERROR);
 	}
 }

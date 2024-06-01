@@ -4,9 +4,13 @@
 //! application. It provides possible error kinds and the
 //! error struct.
 
-use std::io::Write;
+use std::io::BufRead;
+
+use termcolor::WriteColor;
 
 use crate::common::ExitCode;
+use crate::compiler::session_globals::SessionGlobals;
+use crate::parser::lexer::LexerError;
 use crate::t;
 
 /// Convert an I/O error into a string.
@@ -52,6 +56,8 @@ pub enum ErrorKind
 	BasicError(String),
 	/// An I/O error.
 	IOError(std::io::Error, String),
+	/// Lexer error
+	LexerError(LexerError),
 }
 
 /// An error that might occurred across various parts of the
@@ -82,16 +88,20 @@ impl Error
 	}
 
 	/// Print the error to the standard error stream.
-	pub fn print<W>(&self, mut stderr: W)
-	where
-		W: Write,
+	pub fn print<'i, I, O, E>(
+		&self,
+		session_globals: &'i mut SessionGlobals<'i, I, O, E>,
+	) where
+		I: BufRead,
+		O: WriteColor,
+		E: WriteColor,
 	{
 		match &self.kind
 		{
 			ErrorKind::BasicError(msg) =>
 			{
 				let msg = t!("utils-error.template", error = msg);
-				writeln!(&mut stderr, "{}", msg)
+				writeln!(session_globals.stderr, "{}", msg)
 					.expect("failed to write to stderr writer");
 			}
 			ErrorKind::IOError(error, path) =>
@@ -101,8 +111,12 @@ impl Error
 				let msg =
 					t!("utils-error.template", error = io_err_msg);
 				// eprintln!("{}", msg);
-				writeln!(&mut stderr, "{}", msg)
+				writeln!(session_globals.stderr, "{}", msg)
 					.expect("failed to write to stderr writer");
+			}
+			ErrorKind::LexerError(lexer_error) =>
+			{
+				lexer_error.print(session_globals);
 			}
 		}
 	}
@@ -111,8 +125,16 @@ impl Error
 #[cfg(test)]
 mod tests
 {
-	use crate::common::ExitCode;
+	use serial_test::serial;
+	use termcolor::Buffer;
 
+	use crate::common::config::{ApplicationMode, Config};
+	use crate::common::{ExitCode, Source, SourceOrigin};
+	use crate::compiler::session_globals::SessionGlobals;
+	use crate::parser::lexer::{LexerError, LexerErrorCode, LexerErrorPosition};
+	use crate::parser::span::Position;
+
+	#[serial(lang)]
 	#[test]
 	fn test_io_error_to_string()
 	{
@@ -191,10 +213,21 @@ mod tests
 			ExitCode::ERROR,
 		);
 
-		let mut stderr = Vec::new();
-		error.print(&mut stderr);
+		let mut stderr = Buffer::no_color();
+		let mut stdin = std::io::empty();
+		let mut stdout = Buffer::no_color();
 
-		let result = String::from_utf8(stderr).unwrap();
+		let mut session_globals = SessionGlobals::new(
+			ApplicationMode::Compiler,
+			Config::default(),
+			&mut stdin,
+			&mut stdout,
+			&mut stderr,
+		);
+		error.print(&mut session_globals);
+
+		let result =
+			String::from_utf8(stderr.into_inner()).unwrap();
 		assert_eq!(
 			result,
 			"error: \u{2068}An error occurred\u{2069}\n"
@@ -215,14 +248,66 @@ mod tests
 			ExitCode::IO_ERROR,
 		);
 
-		let mut stderr = Vec::new();
-		error.print(&mut stderr);
+		let mut stderr = Buffer::no_color();
+		let mut stdin = std::io::empty();
+		let mut stdout = Buffer::no_color();
 
-		let result = String::from_utf8(stderr).unwrap();
+		let mut session_globals = SessionGlobals::new(
+			ApplicationMode::Compiler,
+			Config::default(),
+			&mut stdin,
+			&mut stdout,
+			&mut stderr,
+		);
+		error.print(&mut session_globals);
+
+		let result =
+			String::from_utf8(stderr.into_inner()).unwrap();
 		assert_eq!(
 			result,
 			"error: \u{2068}The path \u{2068}file.txt\u{2069} \
 			 does not exist.\u{2069}\n"
 		);
+	}
+
+	#[test]
+	fn test_print_lexer_error()
+	{
+		let source =
+			Source::from("1+2").with_origin(SourceOrigin::String);
+		let source_id = source.source_id().unwrap();
+
+		let lexer_error = LexerError {
+			code: LexerErrorCode::UnexpectedCharacter,
+			message: "Unexpected character".to_owned(),
+			hint: Some("Check the character".to_owned()),
+			position: LexerErrorPosition::Position(Position {
+				line: 1,
+				column: 1,
+				offset: 0,
+				char_index: 0,
+			}),
+			source_id: source_id.clone().into(),
+		};
+
+		let mut stdin = std::io::empty();
+		let mut stdout = Buffer::no_color();
+		let mut stderr = Buffer::no_color();
+		let mut session_globals = SessionGlobals::new(
+			ApplicationMode::Compiler,
+			Config::default(),
+			&mut stdin,
+			&mut stdout,
+			&mut stderr,
+		);
+		session_globals
+			.source_id_map
+			.insert(source_id.clone().into(), source);
+
+		let error = super::Error::new(
+			super::ErrorKind::LexerError(lexer_error),
+			ExitCode::SYNTAX_ERROR,
+		);
+		error.print(&mut session_globals);
 	}
 }

@@ -3,6 +3,7 @@
 use clap::{ArgMatches, Command};
 use libfuzzer_sys::fuzz_target;
 use mabel::clap_utils;
+use termcolor::{ColorChoice, StandardStream};
 
 /// Fuzz testing for CLI subcommand error handling
 /// Mabel tried to cover all possible errors that could be
@@ -24,8 +25,8 @@ fn handle_matches(
 			clap_utils::handle_clap_error(
 				error,
 				app,
-				std::io::stdout().lock(),
-				std::io::stderr().lock(),
+				&mut StandardStream::stdout(ColorChoice::Auto),
+				&mut StandardStream::stderr(ColorChoice::Auto),
 			)
 		})
 		.map_err(|_| ())

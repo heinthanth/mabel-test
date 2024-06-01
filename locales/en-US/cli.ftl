@@ -12,6 +12,7 @@ cli-help =
 
     .arg-debug = Set debug level of the compiler/interpreter
     .arg-help = Show this help message and exit
+    .arg-color = Set color output
     .arg-version = Show version and exit
 
 cli-subcmd-compile-help =

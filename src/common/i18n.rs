@@ -142,9 +142,8 @@ pub fn get_os_locale() -> SystemLocale
 				chrono_locale: Locale::my_MM,
 			}
 		}
-		locale =>
+		_ =>
 		{
-			println!("Unsupported locale: {:?}", locale);
 			SystemLocale::default()
 		}
 	}
@@ -269,7 +268,7 @@ mod tests
 	/// Test the `get_os_locale` function.
 	/// It should return the current locale of the system
 	/// depending on the LANG environment variable.
-	#[serial]
+	#[serial(lang)]
 	#[test]
 	fn get_os_locale()
 	{
@@ -284,7 +283,7 @@ mod tests
 		assert_eq!(locale.chrono_locale, chrono::Locale::en_US);
 
 		// set envionment variable
-		std::env::set_var("LANG", "my-MM");
+		std::env::set_var("LANG", "my-MM.UTF-8");
 
 		let locale = super::get_os_locale();
 		assert_eq!(
@@ -294,12 +293,12 @@ mod tests
 		assert_eq!(locale.chrono_locale, chrono::Locale::my_MM);
 	}
 
-	#[serial]
+	#[serial(lang)]
 	#[test]
 	fn fallback_os_locale()
 	{
 		// set envionment variable
-		std::env::set_var("LANG", "en-GB");
+		std::env::set_var("LANG", "en-GB.UTF-8");
 
 		let locale = super::get_os_locale();
 		assert_eq!(
@@ -309,7 +308,7 @@ mod tests
 		assert_eq!(locale.chrono_locale, chrono::Locale::en_US);
 
 		// set envionment variable
-		std::env::set_var("LANG", "my-TH");
+		std::env::set_var("LANG", "my-TH.UTF-8");
 
 		let locale = super::get_os_locale();
 		assert_eq!(
@@ -362,7 +361,7 @@ mod tests
 	/// Test the `lookup` function.
 	/// It should return the value of the key and properly
 	/// interpolate the arguments.
-	#[serial]
+	#[serial(lang)]
 	#[test]
 	fn simple_lookup()
 	{
@@ -389,7 +388,7 @@ mod tests
 	/// Test the `lookup` function with default value.
 	/// It should return the default value if the key does
 	/// not exist.
-	#[serial]
+	#[serial(lang)]
 	#[test]
 	fn lookup_with_default_value()
 	{
@@ -415,7 +414,7 @@ mod tests
 	/// Test the `lookup` function with non-existent key.
 	/// It should return the key itself if the key does not
 	/// exist.
-	#[serial]
+	#[serial(lang)]
 	#[test]
 	fn lookup_non_existent_key()
 	{

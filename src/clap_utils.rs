@@ -4,12 +4,12 @@
 //! It provides the functions to run the CLI and handle the
 //! subcommands.
 
-use std::io::Write;
-
 use clap::error::{ContextKind, ErrorKind};
 use clap::{crate_authors, crate_version, Arg, ArgAction, Command};
+use termcolor::WriteColor;
 
 use crate::common::config::CompilerBackend;
+use crate::common::utils::is_color_output_disabled;
 use crate::common::ExitCode;
 use crate::{format_datetime, localdate, t};
 
@@ -261,7 +261,7 @@ fn handle_arg_conflict<W>(
 	mut writer: W,
 ) -> ExitCode
 where
-	W: Write,
+	W: WriteColor,
 {
 	let invalid_arg =
 		error.get(ContextKind::InvalidArg).unwrap().to_string();
@@ -294,7 +294,7 @@ fn handle_invalid_value<W>(
 	mut writer: W,
 ) -> ExitCode
 where
-	W: Write,
+	W: WriteColor,
 {
 	let arg =
 		error.get(ContextKind::InvalidArg).unwrap().to_string();
@@ -337,7 +337,7 @@ fn handle_unknown_argument<W>(
 	mut writer: W,
 ) -> ExitCode
 where
-	W: Write,
+	W: WriteColor,
 {
 	let arg =
 		error.get(ContextKind::InvalidArg).unwrap().to_string();
@@ -370,7 +370,7 @@ fn handle_unknown_subcmd<W>(
 	mut writer: W,
 ) -> ExitCode
 where
-	W: Write,
+	W: WriteColor,
 {
 	let subcmd = error
 		.get(ContextKind::InvalidSubcommand)
@@ -404,44 +404,59 @@ where
 pub fn handle_clap_error<OW, EW>(
 	error: clap::Error,
 	root_cmd: Command,
-	mut stdout: OW,
-	mut stderr: EW,
+	stdout: &mut OW,
+	stderr: &mut EW,
 ) -> ExitCode
 where
-	OW: Write,
-	EW: Write,
+	OW: WriteColor,
+	EW: WriteColor,
 {
 	match error.kind()
 	{
 		ErrorKind::InvalidSubcommand =>
 		{
-			handle_unknown_subcmd(error, &mut stderr)
+			handle_unknown_subcmd(error, stderr)
 		}
 		ErrorKind::UnknownArgument =>
 		{
-			handle_unknown_argument(error, &mut stderr)
+			handle_unknown_argument(error, stderr)
 		}
 		ErrorKind::InvalidValue =>
 		{
-			handle_invalid_value(error, &mut stderr)
+			handle_invalid_value(error, stderr)
 		}
 		ErrorKind::ArgumentConflict =>
 		{
-			handle_arg_conflict(error, &mut stderr)
+			handle_arg_conflict(error, stderr)
 		}
 		// print help message
 		ErrorKind::DisplayHelp =>
 		{
-			// println!("{}", error);
-			writeln!(&mut stdout, "{}", error)
+			if is_color_output_disabled()
+			{
+				writeln!(
+					stdout,
+					"{}",
+					root_cmd.clone().render_help()
+				)
 				.expect("failed to write to stdout writer");
+			}
+			else
+			{
+				writeln!(
+					stdout,
+					"{}",
+					root_cmd.clone().render_help().ansi()
+				)
+				.expect("failed to write to stdout writer");
+			}
 			ExitCode::SUCCESS
 		}
 		// print version message
 		ErrorKind::DisplayVersion =>
 		{
 			// println!("{}", build_version_string());
-			writeln!(&mut stdout, "{}", build_version_string())
+			writeln!(stdout, "{}", build_version_string())
 				.expect("failed to write to stdout writer");
 			ExitCode::SUCCESS
 		}
@@ -449,13 +464,25 @@ where
 		ErrorKind::MissingSubcommand =>
 		{
 			// eprintln!("{}", root_cmd.clone().render_help());
-			writeln!(
-				&mut stderr,
-				"{}",
-				root_cmd.clone().render_help()
-			)
-			.expect("failed to write to stderr writer");
-			ExitCode::SUCCESS
+			if is_color_output_disabled()
+			{
+				writeln!(
+					stderr,
+					"{}",
+					root_cmd.clone().render_help()
+				)
+				.expect("failed to write to stdout writer");
+			}
+			else
+			{
+				writeln!(
+					stderr,
+					"{}",
+					root_cmd.clone().render_help().ansi()
+				)
+				.expect("failed to write to stdout writer");
+			}
+			ExitCode::INVALID_INPUT_OR_USAGE
 		}
 		#[cfg(fuzzing)]
 		_ => unreachable!(
@@ -471,7 +498,7 @@ where
 			// 	t!("utils-error.template", error = err)
 			// );
 			writeln!(
-				&mut stderr,
+				stderr,
 				"{}",
 				t!("utils-error.template", error = err)
 			)
@@ -485,12 +512,13 @@ where
 mod tests
 {
 	use clap::error::ErrorKind;
-	use clap::{crate_authors, Command};
+	use clap::{crate_authors, crate_version, Command};
 	use serial_test::serial;
+	use termcolor::Buffer;
 
 	/// Test the `build_version_string` function.
 	/// It should return the version string of the app.
-	#[serial]
+	#[serial(lang)]
 	#[test]
 	fn test_build_version_string()
 	{
@@ -501,8 +529,9 @@ mod tests
 		assert_eq!(
 			version,
 			format!(
-				"The Mabel Compiler v\u{2068}0.1.0\u{2069}\n(c) \
+				"The Mabel Compiler v\u{2068}{}\u{2069}\n(c) \
 				 \u{2068}2024\u{2069} \u{2068}{}\u{2069}",
+				crate_version!(),
 				crate_authors!()
 			),
 		);
@@ -625,17 +654,20 @@ mod tests
 		assert_eq!(cmd.get_name(), "mabel");
 	}
 
+	#[serial(color)]
 	#[test]
-	fn test_handle_clap_error_missing_subcommand()
+	fn test_handle_clap_error_missing_subcommand_no_color()
 	{
 		let cli = super::new_clap_app();
 		let maybe_matches =
 			cli.clone().try_get_matches_from(vec!["mabel"]);
 		let error = maybe_matches.unwrap_err();
 
-		let mut stdout = Vec::new();
-		let mut stderr = Vec::new();
+		let mut stdout = Buffer::no_color();
+		let mut stderr = Buffer::no_color();
 
+		std::env::remove_var("COLOR");
+		std::env::set_var("NO_COLOR", "1");
 		let exit_code = super::handle_clap_error(
 			error,
 			cli.clone(),
@@ -643,15 +675,50 @@ mod tests
 			&mut stderr,
 		);
 
-		assert_eq!(exit_code, crate::common::ExitCode::SUCCESS);
 		assert_eq!(
-			String::from_utf8(stderr).unwrap(),
+			exit_code,
+			crate::common::ExitCode::INVALID_INPUT_OR_USAGE
+		);
+		assert_eq!(
+			String::from_utf8(stderr.into_inner()).unwrap(),
 			cli.clone().render_help().to_string() + "\n"
 		);
 	}
 
+	#[serial(color)]
 	#[test]
-	fn test_handle_clap_help_flag()
+	fn test_handle_clap_error_missing_subcommand_color()
+	{
+		let cli = super::new_clap_app();
+		let maybe_matches =
+			cli.clone().try_get_matches_from(vec!["mabel"]);
+		let error = maybe_matches.unwrap_err();
+
+		let mut stdout = Buffer::no_color();
+		let mut stderr = Buffer::no_color();
+
+		std::env::remove_var("COLOR");
+		std::env::remove_var("NO_COLOR");
+		let exit_code = super::handle_clap_error(
+			error,
+			cli.clone(),
+			&mut stdout,
+			&mut stderr,
+		);
+
+		assert_eq!(
+			exit_code,
+			crate::common::ExitCode::INVALID_INPUT_OR_USAGE
+		);
+		assert_eq!(
+			String::from_utf8(stderr.into_inner()).unwrap(),
+			format!("{}\n", cli.clone().render_help().ansi())
+		);
+	}
+
+	#[serial(color)]
+	#[test]
+	fn test_handle_clap_help_flag_no_color()
 	{
 		let cli = super::new_clap_app();
 		let maybe_matches = cli
@@ -659,9 +726,11 @@ mod tests
 			.try_get_matches_from(vec!["mabel", "--help"]);
 		let error = maybe_matches.unwrap_err();
 
-		let mut stdout = Vec::new();
-		let mut stderr = Vec::new();
+		let mut stdout = Buffer::no_color();
+		let mut stderr = Buffer::no_color();
 
+		std::env::remove_var("COLOR");
+		std::env::set_var("NO_COLOR", "1");
 		let exit_code = super::handle_clap_error(
 			error,
 			cli.clone(),
@@ -671,8 +740,37 @@ mod tests
 
 		assert_eq!(exit_code, crate::common::ExitCode::SUCCESS);
 		assert_eq!(
-			String::from_utf8(stdout).unwrap(),
+			String::from_utf8(stdout.into_inner()).unwrap(),
 			cli.clone().render_help().to_string() + "\n"
+		);
+	}
+
+	#[serial(color)]
+	#[test]
+	fn test_handle_clap_help_flag_color()
+	{
+		let cli = super::new_clap_app();
+		let maybe_matches = cli
+			.clone()
+			.try_get_matches_from(vec!["mabel", "--help"]);
+		let error = maybe_matches.unwrap_err();
+
+		let mut stdout = Buffer::no_color();
+		let mut stderr = Buffer::no_color();
+
+		std::env::remove_var("COLOR");
+		std::env::remove_var("NO_COLOR");
+		let exit_code = super::handle_clap_error(
+			error,
+			cli.clone(),
+			&mut stdout,
+			&mut stderr,
+		);
+
+		assert_eq!(exit_code, crate::common::ExitCode::SUCCESS);
+		assert_eq!(
+			String::from_utf8(stdout.into_inner()).unwrap(),
+			format!("{}\n", cli.clone().render_help().ansi())
 		);
 	}
 
@@ -685,8 +783,8 @@ mod tests
 			.try_get_matches_from(vec!["mabel", "--version"]);
 		let error = maybe_matches.unwrap_err();
 
-		let mut stdout = Vec::new();
-		let mut stderr = Vec::new();
+		let mut stdout = Buffer::no_color();
+		let mut stderr = Buffer::no_color();
 
 		let exit_code = super::handle_clap_error(
 			error,
@@ -697,10 +795,11 @@ mod tests
 
 		assert_eq!(exit_code, crate::common::ExitCode::SUCCESS);
 		assert_eq!(
-			String::from_utf8(stdout).unwrap(),
+			String::from_utf8(stdout.into_inner()).unwrap(),
 			format!(
-				"The Mabel Compiler v\u{2068}0.1.0\u{2069}\n(c) \
+				"The Mabel Compiler v\u{2068}{}\u{2069}\n(c) \
 				 \u{2068}2024\u{2069} \u{2068}{}\u{2069}\n",
+				crate_version!(),
 				crate_authors!()
 			),
 		);
@@ -719,8 +818,8 @@ mod tests
 			]);
 		let error = maybe_matches.unwrap_err();
 
-		let mut stdout = Vec::new();
-		let mut stderr = Vec::new();
+		let mut stdout = Buffer::no_color();
+		let mut stderr = Buffer::no_color();
 
 		let exit_code = super::handle_clap_error(
 			error,
@@ -734,7 +833,7 @@ mod tests
 			crate::common::ExitCode::INVALID_INPUT_OR_USAGE
 		);
 		assert_eq!(
-			String::from_utf8(stderr).unwrap(),
+			String::from_utf8(stderr.into_inner()).unwrap(),
 			format!(
 				"error: \u{2068}Invalid value \u{2068}invalid\u{2069} for argument \
 				\u{2068}--backend <backend>\u{2069} and should be one of: \u{2068}{}\u{2069}\u{2069}\n",
@@ -753,8 +852,8 @@ mod tests
 			]);
 		let error = maybe_matches.unwrap_err();
 
-		let mut stdout = Vec::new();
-		let mut stderr = Vec::new();
+		let mut stdout = Buffer::no_color();
+		let mut stderr = Buffer::no_color();
 
 		let exit_code = super::handle_clap_error(
 			error,
@@ -768,7 +867,7 @@ mod tests
 			crate::common::ExitCode::INVALID_INPUT_OR_USAGE
 		);
 		assert_eq!(
-			String::from_utf8(stderr).unwrap(),
+			String::from_utf8(stderr.into_inner()).unwrap(),
 			"error: \u{2068}The argument \u{2068}--out \
 			 <output>\u{2069} cannot be used multiple \
 			 times\u{2069}\n",
@@ -787,8 +886,8 @@ mod tests
 			]);
 		let error = maybe_matches.unwrap_err();
 
-		let mut stdout = Vec::new();
-		let mut stderr = Vec::new();
+		let mut stdout = Buffer::no_color();
+		let mut stderr = Buffer::no_color();
 
 		let exit_code = super::handle_clap_error(
 			error,
@@ -802,7 +901,7 @@ mod tests
 			crate::common::ExitCode::INVALID_INPUT_OR_USAGE
 		);
 		assert_eq!(
-			String::from_utf8(stderr).unwrap(),
+			String::from_utf8(stderr.into_inner()).unwrap(),
 			"error: \u{2068}Unexpected argument \
 			 \u{2068}--unknown\u{2069}\u{2069}\n",
 		);
@@ -817,8 +916,8 @@ mod tests
 			.try_get_matches_from(vec!["mabel", "unknown"]);
 		let error = maybe_matches.unwrap_err();
 
-		let mut stdout = Vec::new();
-		let mut stderr = Vec::new();
+		let mut stdout = Buffer::no_color();
+		let mut stderr = Buffer::no_color();
 
 		let exit_code = super::handle_clap_error(
 			error,
@@ -832,7 +931,7 @@ mod tests
 			crate::common::ExitCode::INVALID_INPUT_OR_USAGE
 		);
 		assert_eq!(
-			String::from_utf8(stderr).unwrap(),
+			String::from_utf8(stderr.into_inner()).unwrap(),
 			"error: \u{2068}Unexpected subcommand \
 			 \u{2068}unknown\u{2069}\u{2069}\n",
 		);
@@ -843,8 +942,8 @@ mod tests
 	{
 		let cli = super::new_clap_app();
 		let error = clap::Error::new(ErrorKind::Io);
-		let mut stdout = Vec::new();
-		let mut stderr = Vec::new();
+		let mut stdout = Buffer::no_color();
+		let mut stderr = Buffer::no_color();
 
 		let exit_code = super::handle_clap_error(
 			error,
@@ -858,7 +957,7 @@ mod tests
 			crate::common::ExitCode::INVALID_INPUT_OR_USAGE
 		);
 		assert_eq!(
-			String::from_utf8(stderr).unwrap(),
+			String::from_utf8(stderr.into_inner()).unwrap(),
 			"error: \u{2068}Something went wrong while parsing \
 			 CLI arguments\u{2069}\n",
 		);

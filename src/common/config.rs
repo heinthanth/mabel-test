@@ -5,7 +5,132 @@
 //! mode, interpreter mode
 
 use clap::ArgMatches;
-use codespan_reporting::term::termcolor::ColorChoice;
+use termcolor::ColorChoice;
+
+/// Configuration enum for the program.
+#[derive(Debug, Clone)]
+pub struct Config
+{
+	/// Global configuration of the program.
+	pub global_config: GlobalConfig,
+	/// Inner configuration of the program.
+	pub inner: Option<InnerConfig>,
+}
+
+/// Available Application modes
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ApplicationMode
+{
+	/// Run the program in interpreter mode.
+	Interpreter,
+	/// Run the program in compiler mode.
+	Compiler,
+}
+
+/// Configuration inner of the program.
+#[derive(Debug, Clone)]
+pub enum InnerConfig
+{
+	/// Run the program in interpreter mode.
+	Interpreter(InterpreterModeConfig),
+	/// Run the program in compiler mode.
+	Compiler(CompilerModeConfig),
+}
+
+/// `Default` implementation for `Config`.
+impl Default for Config
+{
+	/// Create a new `Config` with default values.
+	fn default() -> Self
+	{
+		Config {
+			global_config: Default::default(),
+			inner: None,
+		}
+	}
+}
+
+/// Implementation of `Config`.
+impl Config
+{
+	/// Create a new `Config` instance.
+	///
+	/// # Arguments
+	///
+	/// * `global_config` - The global configuration of the
+	///   program.
+	/// * `inner` - The inner configuration of the program.
+	///
+	/// # Returns
+	///
+	/// The `Config` instance.
+	pub fn new(
+		global_config: GlobalConfig,
+		inner: InnerConfig,
+	) -> Self
+	{
+		Config {
+			global_config,
+			inner: Some(inner),
+		}
+	}
+
+	/// Create a new `Config` from `ArgMatches`.
+	///
+	/// # Arguments
+	///
+	/// * `matches` - The `ArgMatches` to convert.
+	///
+	/// # Returns
+	///
+	/// The `Config` instance.
+	pub fn from_arg_matches(
+		matches: ArgMatches,
+		subcommand: Option<ApplicationMode>,
+	) -> Config
+	{
+		Config {
+			global_config: GlobalConfig::from(matches.clone()),
+			inner: Config::inner_config_from_arg_matches(
+				matches, subcommand,
+			),
+		}
+	}
+
+	/// Create inner configuration from the `Config`.
+	/// If the subcommand is not recognized, it will return
+	/// `None`.
+	///
+	/// # Arguments
+	///
+	/// * `matches` - The `ArgMatches` to convert.
+	///
+	/// # Returns
+	///
+	/// The inner configuration of the program.
+	fn inner_config_from_arg_matches(
+		matches: ArgMatches,
+		mode: Option<ApplicationMode>,
+	) -> Option<InnerConfig>
+	{
+		match mode
+		{
+			Some(ApplicationMode::Interpreter) =>
+			{
+				Some(InnerConfig::Interpreter(
+					InterpreterModeConfig::from(matches),
+				))
+			}
+			Some(ApplicationMode::Compiler) =>
+			{
+				Some(InnerConfig::Compiler(
+					CompilerModeConfig::from(matches),
+				))
+			}
+			_ => None,
+		}
+	}
+}
 
 /// Configuration of the program's global settings.
 #[derive(Debug, Clone)]
@@ -39,7 +164,7 @@ impl Default for GlobalConfig
 /// # Returns
 ///
 /// The `ColorChoice` value.
-fn color_choice_from_string(value: String) -> ColorChoice
+pub fn color_choice_from_string(value: String) -> ColorChoice
 {
 	match value.to_lowercase().as_str()
 	{
@@ -70,8 +195,6 @@ impl From<ArgMatches> for GlobalConfig
 #[derive(Debug, Clone)]
 pub struct InterpreterModeConfig
 {
-	/// Global configuration of the program.
-	pub global_config: GlobalConfig,
 	/// Run the program using JIT execution engine.
 	pub jit_enabled: bool,
 }
@@ -83,10 +206,7 @@ impl Default for InterpreterModeConfig
 	/// values.
 	fn default() -> Self
 	{
-		InterpreterModeConfig {
-			global_config: GlobalConfig::default(),
-			jit_enabled: true,
-		}
+		InterpreterModeConfig { jit_enabled: true }
 	}
 }
 
@@ -99,7 +219,6 @@ impl From<ArgMatches> for InterpreterModeConfig
 	fn from(matches: ArgMatches) -> Self
 	{
 		InterpreterModeConfig {
-			global_config: GlobalConfig::from(matches.clone()),
 			jit_enabled: !matches.get_flag("no-jit"),
 		}
 	}
@@ -147,8 +266,6 @@ impl From<String> for CompilerBackend
 #[derive(Debug, Clone)]
 pub struct CompilerModeConfig
 {
-	/// Global configuration of the program.
-	pub global_config: GlobalConfig,
 	/// The output file of the compiler.
 	pub output_file: Option<String>,
 	/// The backend of the compiler.
@@ -163,7 +280,6 @@ impl Default for CompilerModeConfig
 	fn default() -> Self
 	{
 		CompilerModeConfig {
-			global_config: GlobalConfig::default(),
 			output_file: None,
 			backend: CompilerBackend::LLVM,
 		}
@@ -179,7 +295,6 @@ impl From<ArgMatches> for CompilerModeConfig
 	fn from(matches: ArgMatches) -> Self
 	{
 		CompilerModeConfig {
-			global_config: GlobalConfig::from(matches.clone()),
 			output_file: matches
 				.get_one::<String>("output")
 				.map(|v| v.to_owned()),
@@ -196,11 +311,17 @@ impl From<ArgMatches> for CompilerModeConfig
 mod tests
 {
 	use clap::{Arg, ArgAction, Command};
+	#[cfg(coverage)]
+	use coverage_helper::test;
+	use termcolor::ColorChoice;
+
+	use crate::common::config::{ApplicationMode, Config, InnerConfig};
+	use crate::get_enum_variant;
 
 	#[test]
 	fn test_color_choice_from_string()
 	{
-		use codespan_reporting::term::termcolor::ColorChoice;
+		use termcolor::ColorChoice;
 
 		use super::color_choice_from_string;
 
@@ -231,9 +352,45 @@ mod tests
 	}
 
 	#[test]
+	fn test_default_config()
+	{
+		use termcolor::ColorChoice;
+
+		use super::Config;
+
+		let config = Config::default();
+
+		assert_eq!(config.global_config.debug_level, 0);
+		assert_eq!(
+			config.global_config.color_choice,
+			ColorChoice::Auto
+		);
+		assert!(config.inner.is_none());
+	}
+
+	#[test]
+	fn test_config_new()
+	{
+		use termcolor::ColorChoice;
+
+		use super::{Config, GlobalConfig, InnerConfig};
+
+		let global_config = GlobalConfig::default();
+		let inner =
+			InnerConfig::Interpreter(Default::default());
+		let config = Config::new(global_config, inner);
+
+		assert_eq!(config.global_config.debug_level, 0);
+		assert_eq!(
+			config.global_config.color_choice,
+			ColorChoice::Auto
+		);
+	}
+
+	#[test]
 	fn test_global_config_from_arg_matches()
 	{
-		use codespan_reporting::term::termcolor::ColorChoice;
+		use termcolor::ColorChoice;
 
 		use super::GlobalConfig;
 
@@ -257,6 +414,36 @@ mod tests
 
 		assert_eq!(config.debug_level, 1);
 		assert_eq!(config.color_choice, ColorChoice::Always);
+	}
+
+	#[test]
+	fn test_config_from_arg_matches_with_invalid_subcmd()
+	{
+		let command = Command::new("test")
+			.arg(
+				Arg::new("debug")
+					.action(ArgAction::Count)
+					.short('d')
+					.long("debug"),
+			)
+			.arg(
+				Arg::new("color")
+					.short('c')
+					.long("color")
+					.action(ArgAction::Set),
+			);
+
+		let matches = command
+			.clone()
+			.get_matches_from(vec!["test", "-d", "-c", "always"]);
+		let config = Config::from_arg_matches(matches, None);
+
+		assert_eq!(config.global_config.debug_level, 1);
+		assert_eq!(
+			config.global_config.color_choice,
+			ColorChoice::Always
+		);
+		assert!(config.inner.is_none());
 	}
 
 	#[test]
@@ -293,18 +480,28 @@ mod tests
 		let matches = command.clone().get_matches_from(vec![
 			"test", "-d", "-o", "output", "-b", "llvm",
 		]);
-		let config = CompilerModeConfig::from(matches);
+		let config = Config::from_arg_matches(
+			matches,
+			Some(ApplicationMode::Compiler),
+		);
 
 		assert_eq!(config.global_config.debug_level, 1);
 		assert_eq!(
 			config.global_config.color_choice,
 			Default::default()
 		);
+
+		let inner = get_enum_variant!(
+			config.inner.unwrap(),
+			InnerConfig::Compiler(data),
+			data
+		)
+		.unwrap();
 		assert_eq!(
-			config.output_file,
+			inner.output_file,
 			Some("output".to_owned())
 		);
-		assert_eq!(config.backend, CompilerBackend::LLVM);
+		assert_eq!(inner.backend, CompilerBackend::LLVM);
 
 		let matches = command.clone().get_matches_from(vec![
 			"test", "-d", "-c", "always", "-o", "output",
@@ -316,8 +513,6 @@ mod tests
 	#[test]
 	fn test_interpreter_mode_config_from_arg_matches()
 	{
-		use super::InterpreterModeConfig;
-
 		let command = Command::new("test")
 			.arg(
 				Arg::new("debug")
@@ -338,15 +533,26 @@ mod tests
 			);
 
 		let matches = command
+			.clone()
 			.get_matches_from(vec!["test", "-d", "--no-jit"]);
-		let config = InterpreterModeConfig::from(matches);
+		let config = Config::from_arg_matches(
+			matches,
+			Some(ApplicationMode::Interpreter),
+		);
 
 		assert_eq!(config.global_config.debug_level, 1);
 		assert_eq!(
 			config.global_config.color_choice,
 			Default::default()
 		);
-		assert_eq!(config.jit_enabled, false);
+
+		let inner = get_enum_variant!(
+			config.inner.unwrap(),
+			InnerConfig::Interpreter(data),
+			data
+		)
+		.unwrap();
+		assert_eq!(inner.jit_enabled, false);
 	}
 
 	#[test]
@@ -386,7 +592,7 @@ mod tests
 	#[test]
 	fn test_global_config_default()
 	{
-		use codespan_reporting::term::termcolor::ColorChoice;
+		use termcolor::ColorChoice;
 
 		use super::GlobalConfig;
 
@@ -403,11 +609,6 @@ mod tests
 
 		let config = CompilerModeConfig::default();
 
-		assert_eq!(config.global_config.debug_level, 0);
-		assert_eq!(
-			config.global_config.color_choice,
-			Default::default()
-		);
 		assert_eq!(config.output_file, None);
 		assert_eq!(config.backend, CompilerBackend::LLVM);
 	}
@@ -419,11 +620,6 @@ mod tests
 
 		let config = InterpreterModeConfig::default();
 
-		assert_eq!(config.global_config.debug_level, 0);
-		assert_eq!(
-			config.global_config.color_choice,
-			Default::default()
-		);
 		assert_eq!(config.jit_enabled, true);
 	}
 }

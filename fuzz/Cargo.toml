@@ -10,6 +10,7 @@ cargo-fuzz = true
 [dependencies]
 libfuzzer-sys = "0.4"
 clap = "4.5.4"
+termcolor = "1.4.1"
 
 [dependencies.mabel]
 path = ".."
