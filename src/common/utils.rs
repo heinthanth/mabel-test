@@ -4,7 +4,9 @@
 //! various tasks such as date time formatting, file
 //! reading, etc.
 
-use std::io::{BufRead, IsTerminal};
+use std::io::BufRead;
+#[cfg(not(coverage))]
+use std::io::IsTerminal;
 use std::path::{Path, PathBuf};
 
 use url::Url;
@@ -142,6 +144,10 @@ pub fn is_color_output_disabled() -> bool
 		return true;
 	}
 
+	#[cfg(coverage)]
+	return std::env::var("TERM").as_deref() == Ok("dumb");
+
+	#[cfg(not(coverage))]
 	return std::env::var("TERM").as_deref() == Ok("dumb")
 		|| !std::io::stdin().is_terminal()
 		|| !std::io::stdout().is_terminal()
@@ -348,6 +354,7 @@ mod tests
 	#[test]
 	fn test_force_color_output_enabled()
 	{
+		std::env::remove_var("NO_COLOR");
 		std::env::set_var("COLOR", "always");
 
 		assert!(super::is_color_output_force_enabled());
@@ -369,6 +376,10 @@ mod tests
 		assert!(!super::is_color_output_disabled());
 
 		std::env::set_var("COLOR", "never");
+		assert!(super::is_color_output_disabled());
+
+		std::env::remove_var("COLOR");
+		std::env::set_var("TERM", "dumb");
 		assert!(super::is_color_output_disabled());
 	}
 }

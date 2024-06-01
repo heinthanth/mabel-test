@@ -697,7 +697,7 @@ mod tests
 		let mut stdout = Buffer::no_color();
 		let mut stderr = Buffer::no_color();
 
-		std::env::remove_var("COLOR");
+		std::env::set_var("COLOR", "always");
 		std::env::remove_var("NO_COLOR");
 		let exit_code = super::handle_clap_error(
 			error,
@@ -758,7 +758,7 @@ mod tests
 		let mut stdout = Buffer::no_color();
 		let mut stderr = Buffer::no_color();
 
-		std::env::remove_var("COLOR");
+		std::env::set_var("COLOR", "always");
 		std::env::remove_var("NO_COLOR");
 		let exit_code = super::handle_clap_error(
 			error,
