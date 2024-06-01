@@ -336,6 +336,8 @@ impl TryFrom<PathBuf> for Source
 #[cfg(test)]
 mod tests
 {
+	use url::Url;
+
 	use crate::common::ExitCode;
 
 	#[test]
@@ -508,11 +510,15 @@ mod tests
 
 		assert_eq!(
 			source.source_id().unwrap(),
-			concat!(
-				"file://",
-				env!("CARGO_MANIFEST_DIR"),
-				"/test.mbl"
+			Url::from_file_path(
+				std::path::absolute(concat!(
+					env!("CARGO_MANIFEST_DIR"),
+					"/test.mbl"
+				))
+				.unwrap()
 			)
+			.unwrap()
+			.to_string()
 		);
 
 		let source = Source::from("1 + 32")
