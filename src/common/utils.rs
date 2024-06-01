@@ -261,6 +261,7 @@ mod tests
 {
 	use chrono::NaiveDate;
 	use serial_test::serial;
+	use url::Url;
 
 	use crate::common::utils::path_to_file_url;
 	use crate::common::ExitCode;
@@ -346,7 +347,7 @@ mod tests
 		assert!(file_url.is_ok());
 		assert_eq!(
 			file_url.unwrap(),
-			format!("file://{}", path.to_string_lossy())
+			Url::from_file_path(path).unwrap().to_string()
 		);
 	}
 
