@@ -12,6 +12,7 @@ pub mod utils;
 
 use std::path::PathBuf;
 
+use smol_str::{SmolStr, ToSmolStr};
 use utils::{get_absolute_path, path_to_file_url};
 
 use crate::common::error::{Error, ErrorKind};
@@ -256,19 +257,20 @@ impl Source
 	/// # Returns
 	///
 	/// The source id.
-	pub fn source_id(&self) -> Result<String, Error>
+	pub fn source_id(&self) -> Result<SmolStr, Error>
 	{
 		match self.origin
 		{
 			SourceOrigin::String | SourceOrigin::Stdin =>
 			{
-				Ok("mabel://stdin".to_string())
+				Ok("mabel://stdin".to_smolstr())
 			}
-			SourceOrigin::REPL => Ok("mabel://REPL".to_string()),
+			SourceOrigin::REPL => Ok("mabel://REPL".to_smolstr()),
 			SourceOrigin::File(ref path) =>
 			{
 				let abs_path = get_absolute_path(path.clone())?;
 				path_to_file_url(abs_path)
+					.map(|url| url.to_smolstr())
 			}
 		}
 	}

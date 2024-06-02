@@ -429,13 +429,7 @@ impl Lexer
 				),
 				hint: None,
 				position: LexerErrorPosition::Position(self.start),
-				// cloning the smolstr itself cause llvm-cov reports
-				// `warning: 1 functions have mismatched data`
-				source_id: self
-					.source_id
-					.to_string()
-					.clone()
-					.into(),
+				source_id: self.source_id.clone(),
 			}),
 		}
 	}

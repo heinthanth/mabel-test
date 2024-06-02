@@ -1,6 +1,7 @@
 use std::io::BufRead;
 
 use session_globals::SessionGlobals;
+use smol_str::SmolStr;
 use termcolor::WriteColor;
 
 use crate::common::error::{Error, ErrorKind};
@@ -64,7 +65,7 @@ where
 ///
 /// The result or an error.
 fn parse_source<'i, I, O, E>(
-	source_id: &String,
+	source_id: &SmolStr,
 	source_code: &String,
 	_session_globals: &mut SessionGlobals<'i, I, O, E>,
 ) -> Result<(), Error>
@@ -73,16 +74,14 @@ where
 	O: WriteColor,
 	E: WriteColor,
 {
-	let tokens = Lexer::tokenize(
-		source_id.to_string().clone().into(),
-		source_code.clone(),
-	)
-	.map_err(|lexer_error| {
-		Error::new(
-			ErrorKind::LexerError(lexer_error),
-			ExitCode::SYNTAX_ERROR,
-		)
-	})?;
+	let tokens =
+		Lexer::tokenize(source_id.clone(), source_code.clone())
+			.map_err(|lexer_error| {
+				Error::new(
+					ErrorKind::LexerError(lexer_error),
+					ExitCode::SYNTAX_ERROR,
+				)
+			})?;
 	println!("{:#?}", tokens);
 
 	Ok(())
