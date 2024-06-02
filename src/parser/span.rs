@@ -96,6 +96,37 @@ impl Into<Range<usize>> for Span
 	}
 }
 
+/// Lexer error position
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Location
+{
+	/// Position
+	Position(Position),
+	/// Span
+	Span(Span),
+}
+
+/// `Into<Range<usize>>` implementation for
+/// LexerErrorPosition.
+impl Into<Range<usize>> for Location
+{
+	/// Convert the LexerErrorPosition into a range.
+	fn into(self) -> Range<usize>
+	{
+		match self
+		{
+			Location::Position(position) =>
+			{
+				position.offset .. position.offset
+			}
+			Location::Span(span) =>
+			{
+				span.start.offset .. span.end.offset
+			}
+		}
+	}
+}
+
 #[cfg(test)]
 mod tests
 {
@@ -158,5 +189,32 @@ mod tests
 		let range: Range<usize> = span.into();
 		assert_eq!(range.start, 0);
 		assert_eq!(range.end, 1);
+	}
+
+	#[test]
+	fn location_into_range()
+	{
+		use std::ops::Range;
+
+		use super::{Location, Position};
+
+		let position = Position {
+			line: 1,
+			column: 1,
+			offset: 0,
+			char_index: 0,
+		};
+		let span = super::Span {
+			start: position,
+			end: position,
+		};
+
+		let position_range: Range<usize> =
+			Location::Position(position).into();
+		let span_range: Range<usize> =
+			Location::Span(span).into();
+
+		assert_eq!(position_range, 0 .. 0);
+		assert_eq!(span_range, 0 .. 0);
 	}
 }

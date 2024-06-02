@@ -149,7 +149,6 @@ pub fn is_color_output_disabled() -> bool
 
 	#[cfg(not(coverage))]
 	return std::env::var("TERM").as_deref() == Ok("dumb")
-		|| !std::io::stdin().is_terminal()
 		|| !std::io::stdout().is_terminal()
 		|| !std::io::stderr().is_terminal();
 }

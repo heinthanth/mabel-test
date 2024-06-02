@@ -7,6 +7,7 @@ use termcolor::WriteColor;
 use crate::common::error::{Error, ErrorKind};
 use crate::common::{ExitCode, Source};
 use crate::parser::lexer::Lexer;
+use crate::parser::Parser;
 
 pub mod session_globals;
 
@@ -82,7 +83,17 @@ where
 					ExitCode::SYNTAX_ERROR,
 				)
 			})?;
-	println!("{:#?}", tokens);
+
+	let module =
+		Parser::parse(source_id.clone(), true, tokens)
+			.map_err(|parser_error| {
+				Error::new(
+					ErrorKind::ParserError(parser_error),
+					ExitCode::SYNTAX_ERROR,
+				)
+			})?;
+
+	println!("{:#?}", module);
 
 	Ok(())
 }

@@ -27,7 +27,7 @@
 //!
 //! // lookup a key in current OS locale with default value
 //! let key = "foobar1234";
-//! let value = t!(key; "Hello, World");
+//! let value = t!(key, "Hello, World");
 //! assert_eq!(value, "Hello, World");
 //!
 //! // lookup a key in current OS locale with arguments and default value
@@ -219,14 +219,6 @@ macro_rules! t {
     $crate::common::i18n::lookup($key, None, None)
   };
   (
-    $key:expr;
-    $default:expr
-  ) => {
-    // t!("key", "default")
-    // Lookup a key in current OS locale with default value.
-    $crate::common::i18n::lookup($key, None, Some($default.to_string()))
-  };
-  (
     $key:expr,
     $($arg:ident=$value:expr),*
   ) => {
@@ -239,6 +231,14 @@ macro_rules! t {
 		]),
 		None
     )
+  };
+	(
+    $key:expr,
+    $default:expr
+  ) => {
+    // t!("key", "default")
+    // Lookup a key in current OS locale with default value.
+    $crate::common::i18n::lookup($key, None, Some($default.to_string()))
   };
   (
     $key:expr,
@@ -394,7 +394,7 @@ mod tests
 
 		// lookup with default value
 		let value = crate::t!(
-			"common-internal-test.test6";
+			"common-internal-test.test6",
 			"Hello, World!"
 		);
 		assert_eq!(value, "Hello, World!");

@@ -103,8 +103,6 @@ fn create_io_streams(
 /// Map the subcommand to the appropriate function.
 /// This function is called when a subcommand is provided
 /// to the CLI.
-// we can't test this function because we can't emulate to
-// reach unreachable!() branch
 fn map_subcommand<I, O, E>(
 	matches: ArgMatches,
 	stdin: &mut I,
@@ -135,7 +133,7 @@ where
 				stderr,
 			)
 		}
-		Some(..) | None => unreachable!(),
+		Some(..) | None => panic!(),
 	}
 }
 

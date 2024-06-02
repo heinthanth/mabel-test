@@ -1,3 +1,5 @@
 ignore:
   - "src/main.rs"
   - "src/compiler/mod.rs"
+  - "src/parser/ast.rs"
+  - "src/parser/mod.rs"

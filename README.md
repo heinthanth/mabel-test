@@ -30,11 +30,19 @@ cargo make test [...args]
 ### Coverage
 
 This is equivalent to running `cargo llvm-cov args`. [cargo-llvm-cov](https://github.com/taiki-e/cargo-llvm-cov) needs to be installed.
-As of now, `main.rs` and `compiler/mod.rs` are excluded from coverage since they are top-level modules and unit tests for child modules should be written first.
 
 ```
 cargo make coverage [...args]
 ```
+
+As of now, the following files are excluded from coverage since it's very inconvenient to write unit test cases.
+
+- [main.rs](src/main.rs)
+- [compiler/mod.rs](src/compiler/mod.rs)
+- [parser/ast.rs](src/parser/ast.rs)
+- [parser/mod.rs](src/parser/mod.rs)
+
+Those files will be later tested with [mabel source codes](tests/scripts) when, at least, the JIT execution engine is finished.
 
 ## License
 

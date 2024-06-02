@@ -9,8 +9,8 @@ use termcolor::WriteColor;
 use unicode_segmentation::UnicodeSegmentation;
 use unicode_xid::UnicodeXID;
 
-use super::span::{Position, Span};
-use super::token::{FloatLiteralToken, IntegerLiteralToken, LiteralToken, NumberBase, Token, TokenKind};
+use super::span::{Location, Position, Span};
+use super::token::{FloatLiteralToken, IntegerLiteralToken, LiteralTokenKind, NumberBase, Token, TokenKind};
 use crate::compiler::session_globals::SessionGlobals;
 use crate::{t, ternary};
 
@@ -26,37 +26,6 @@ pub enum LexerErrorCode
 	UnimplementedFeature,
 }
 
-/// Lexer error position
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum LexerErrorPosition
-{
-	/// Position
-	Position(Position),
-	/// Span
-	Span(Span),
-}
-
-/// `Into<Range<usize>>` implementation for
-/// LexerErrorPosition.
-impl Into<Range<usize>> for LexerErrorPosition
-{
-	/// Convert the LexerErrorPosition into a range.
-	fn into(self) -> Range<usize>
-	{
-		match self
-		{
-			LexerErrorPosition::Position(position) =>
-			{
-				position.offset .. position.offset
-			}
-			LexerErrorPosition::Span(span) =>
-			{
-				span.start.offset .. span.end.offset
-			}
-		}
-	}
-}
-
 /// Lexer error
 #[derive(Debug, Clone)]
 pub struct LexerError
@@ -68,7 +37,7 @@ pub struct LexerError
 	/// Hint for the error
 	pub hint: Option<String>,
 	/// The position of the error
-	pub position: LexerErrorPosition,
+	pub location: Location,
 	/// The source id of the error
 	pub source_id: SmolStr,
 }
@@ -98,7 +67,7 @@ impl LexerError
 
 		let label = Label::primary(
 			file_id,
-			Into::<Range<usize>>::into(self.position),
+			Into::<Range<usize>>::into(self.location),
 		)
 		.with_message(self.message.clone().to_string());
 
@@ -280,15 +249,20 @@ impl Lexer
 	fn tokenize_internal(&mut self)
 	-> LexerResult<Vec<Token>>
 	{
-		let mut tokens = Vec::new();
+		let mut tokens: Vec<Option<Token>> = Vec::new();
 
 		while !self.is_eoi()
 		{
-			let token = self.scan_token()?;
-			tokens.push(token);
+			tokens.push(self.scan_token()?);
 		}
-
 		tokens.push(self.new_token(TokenKind::EndOfInput));
+
+		let tokens = tokens
+			.into_iter()
+			.filter(|t| t.is_some())
+			.map(|t| t.unwrap())
+			.collect::<Vec<Token>>();
+
 		Ok(tokens)
 	}
 
@@ -345,7 +319,7 @@ impl Lexer
 	/// # Returns
 	///
 	/// The next token or a LexerError.
-	fn scan_token(&mut self) -> LexerResult<Token>
+	fn scan_token(&mut self) -> LexerResult<Option<Token>>
 	{
 		self.skip_skipable();
 		self.start = self.current;
@@ -369,7 +343,10 @@ impl Lexer
 		match c.as_str()
 		{
 			"+" => Ok(self.new_token(TokenKind::Add)),
-			"-" => Ok(self.new_token(TokenKind::Subtract)),
+			"-" =>
+			{
+				Ok(self.new_token(TokenKind::SubtractOrNegate))
+			}
 			"*" =>
 			{
 				if self.match_and_consume("*")
@@ -395,6 +372,8 @@ impl Lexer
 			"%" => Ok(self.new_token(TokenKind::Modulo)),
 			"(" => Ok(self.new_token(TokenKind::LeftParen)),
 			")" => Ok(self.new_token(TokenKind::RightParen)),
+			";" => Ok(self.new_token(TokenKind::SemiColon)),
+			":" => Ok(self.new_token(TokenKind::Colon)),
 			" " =>
 			{
 				while !self.is_eoi()
@@ -402,9 +381,17 @@ impl Lexer
 				{
 					self.advance();
 				}
-				Ok(self.new_token(TokenKind::Whitespace(
-					self.start.column == 1,
-				)))
+				// the whitespace is collected only it's at the
+				// start of the line and the line is not empty
+				if self.start.column == 1
+					&& self.peek().map_or(false, |c| !is_newline(c))
+				{
+					Ok(self.new_token(TokenKind::Whitespace))
+				}
+				else
+				{
+					Ok(None)
+				}
 			}
 			"\t" =>
 			{
@@ -413,9 +400,17 @@ impl Lexer
 				{
 					self.advance();
 				}
-				Ok(self.new_token(TokenKind::Tab(
-					self.start.column == 1,
-				)))
+				// the tab is collected only it's at the
+				// start of the line and the line is not empty
+				if self.start.column == 1
+					&& self.peek().map_or(false, |c| !is_newline(c))
+				{
+					Ok(self.new_token(TokenKind::Tab))
+				}
+				else
+				{
+					Ok(None)
+				}
 			}
 			_ if is_newline(c.clone()) =>
 			{
@@ -428,7 +423,7 @@ impl Lexer
 					character = json!(c).to_string()
 				),
 				hint: None,
-				position: LexerErrorPosition::Position(self.start),
+				location: Location::Position(self.start),
 				source_id: self.source_id.clone(),
 			}),
 		}
@@ -443,9 +438,9 @@ impl Lexer
 	/// # Returns
 	///
 	/// A new token.
-	fn new_token(&self, kind: TokenKind) -> Token
+	fn new_token(&self, kind: TokenKind) -> Option<Token>
 	{
-		Token::new(
+		Some(Token::new(
 			kind,
 			Span::new(self.start, self.current),
 			self.source_code
@@ -453,7 +448,7 @@ impl Lexer
 				.to_owned()
 				.into(),
 			self.source_id.clone(),
-		)
+		))
 	}
 
 	/// Skip the skipable characters such as whitespace except
@@ -572,7 +567,7 @@ impl Lexer
 	/// The comment token.
 	fn create_single_line_comment_token(
 		&mut self,
-	) -> LexerResult<Token>
+	) -> LexerResult<Option<Token>>
 	{
 		while !self.is_eoi()
 			&& self.peek().map_or(false, |c| !is_newline(c))
@@ -589,7 +584,7 @@ impl Lexer
 	/// The identifier token.
 	fn create_reserved_or_identifier_token(
 		&mut self,
-	) -> LexerResult<Token>
+	) -> LexerResult<Option<Token>>
 	{
 		while !self.is_eoi()
 			&& self.peek().map_or(false, |c| {
@@ -612,7 +607,7 @@ impl Lexer
 					feature = "identifier"
 				),
 				hint: None,
-				position: LexerErrorPosition::Span(Span::new(
+				location: Location::Span(Span::new(
 					self.start,
 					self.current,
 				)),
@@ -626,7 +621,9 @@ impl Lexer
 	/// # Returns
 	///
 	/// The number token.
-	fn create_number_token(&mut self) -> LexerResult<Token>
+	fn create_number_token(
+		&mut self,
+	) -> LexerResult<Option<Token>>
 	{
 		let starting_number = self.previous().unwrap();
 
@@ -667,7 +664,6 @@ impl Lexer
 	/// # Returns
 	///
 	/// A tuple of boolean, vector of possible integer widths,
-	#[cfg_attr(coverage_nightly, coverage(off))]
 	fn validate_number_width(
 		&self,
 		width_lexeme: String,
@@ -692,7 +688,10 @@ impl Lexer
 					|| int_possible_widths
 						.contains(&width_lexeme.as_str())
 			}
+			#[cfg(not(test))]
 			_ => unreachable!(),
+			#[cfg(test)]
+			_ => false,
 		};
 
 		(res, int_possible_widths, float_possible_widths)
@@ -713,7 +712,7 @@ impl Lexer
 	fn consume_number(
 		&mut self,
 		base: NumberBase,
-	) -> LexerResult<Token>
+	) -> LexerResult<Option<Token>>
 	{
 		let mut has_int_part = base == NumberBase::Decimal;
 
@@ -770,14 +769,15 @@ impl Lexer
 			}
 		}
 
+		let mut suffix_start_pos: Option<Position> = None;
 		// consume the suffix
 		if self.peek().map_or(false, |c| {
 			matches!(c.as_str(), "f" | "d" | "i" | "u")
 		})
 		{
+			suffix_start_pos = Some(self.current);
 			// consume the suffix
 			let suffix = self.advance();
-			let suffix_start_pos = self.get_previous_position(1);
 
 			// consume the width part like 8, 16, 32, 64
 			// the maximum possible width is 64. But some
@@ -812,8 +812,8 @@ impl Lexer
 							 no-width-for-double"
 						),
 						hint: None,
-						position: LexerErrorPosition::Span(Span::new(
-							suffix_start_pos,
+						location: Location::Span(Span::new(
+							suffix_start_pos.unwrap(),
 							self.current,
 						)),
 						source_id: self.source_id.clone().into(),
@@ -840,8 +840,8 @@ impl Lexer
 					code: LexerErrorCode::InvalidNumberLiteralWidth,
 					message,
 					hint: None,
-					position: LexerErrorPosition::Span(Span::new(
-						suffix_start_pos,
+					location: Location::Span(Span::new(
+						suffix_start_pos.unwrap(),
 						self.current,
 					)),
 					source_id: self.source_id.clone().into(),
@@ -855,21 +855,25 @@ impl Lexer
 		// or int based on the suffix.
 		if is_int
 		{
-			Ok(self.new_token(TokenKind::Literal(
-				LiteralToken::Integer(IntegerLiteralToken {
-					base,
-					has_integer_part: has_int_part,
-				}),
-			)))
+			Ok(self.new_token(TokenKind::Literal {
+				kind: LiteralTokenKind::Integer(
+					IntegerLiteralToken {
+						base,
+						has_integer_part: has_int_part,
+					},
+				),
+				suffix_start: suffix_start_pos,
+			}))
 		}
 		else
 		{
-			Ok(self.new_token(TokenKind::Literal(
-				LiteralToken::Float(FloatLiteralToken {
+			Ok(self.new_token(TokenKind::Literal {
+				kind: LiteralTokenKind::Float(FloatLiteralToken {
 					base,
 					has_exponent_part: has_expontent,
 				}),
-			)))
+				suffix_start: suffix_start_pos,
+			}))
 		}
 	}
 }
@@ -886,36 +890,9 @@ mod tests
 	use crate::parser::token::TokenKind;
 
 	#[test]
-	fn test_lexer_error_position_into_range()
-	{
-		use std::ops::Range;
-
-		use super::{LexerErrorPosition, Position};
-
-		let position = Position {
-			line: 1,
-			column: 1,
-			offset: 0,
-			char_index: 0,
-		};
-		let span = super::Span {
-			start: position,
-			end: position,
-		};
-
-		let position_range: Range<usize> =
-			LexerErrorPosition::Position(position).into();
-		let span_range: Range<usize> =
-			LexerErrorPosition::Span(span).into();
-
-		assert_eq!(position_range, 0 .. 0);
-		assert_eq!(span_range, 0 .. 0);
-	}
-
-	#[test]
 	fn test_create_and_print_diagnostic()
 	{
-		use super::{LexerError, LexerErrorCode, LexerErrorPosition};
+		use super::{LexerError, LexerErrorCode, Location};
 		use crate::compiler::session_globals::SessionGlobals;
 
 		let source =
@@ -926,14 +903,12 @@ mod tests
 			code: LexerErrorCode::UnexpectedCharacter,
 			message: "Unexpected character".to_owned(),
 			hint: Some("Check the character".to_owned()),
-			position: LexerErrorPosition::Position(
-				super::Position {
-					line: 1,
-					column: 1,
-					offset: 0,
-					char_index: 0,
-				},
-			),
+			location: Location::Position(super::Position {
+				line: 1,
+				column: 1,
+				offset: 0,
+				char_index: 0,
+			}),
 			source_id: source_id.clone().into(),
 		};
 
@@ -1034,21 +1009,18 @@ mod tests
 	{
 		test_scan_indivitual_token!("echo", TokenKind::Echo);
 		test_scan_indivitual_token!("+", TokenKind::Add);
-		test_scan_indivitual_token!("-", TokenKind::Subtract);
+		test_scan_indivitual_token!(
+			"-",
+			TokenKind::SubtractOrNegate
+		);
 		test_scan_indivitual_token!("*", TokenKind::Multiply);
 		test_scan_indivitual_token!("/", TokenKind::Divide);
 		test_scan_indivitual_token!("%", TokenKind::Modulo);
 		test_scan_indivitual_token!("**", TokenKind::Exponent);
 		test_scan_indivitual_token!("(", TokenKind::LeftParen);
 		test_scan_indivitual_token!(")", TokenKind::RightParen);
-		test_scan_indivitual_token!(
-			"    ",
-			TokenKind::Whitespace(true)
-		);
-		test_scan_indivitual_token!(
-			"\t\t",
-			TokenKind::Tab(true)
-		);
+		test_scan_indivitual_token!(";", TokenKind::SemiColon);
+		test_scan_indivitual_token!(":", TokenKind::Colon);
 		test_scan_indivitual_token!("\n", TokenKind::NewLine);
 		test_scan_indivitual_token!(
 			"// hello",
@@ -1057,176 +1029,367 @@ mod tests
 	}
 
 	#[test]
+	fn test_whitespace_skipping()
+	{
+		let tokens = Lexer::tokenize(
+			"string".into(),
+			"    1 + 2   1 + 2".into(),
+		);
+		assert!(tokens.is_ok());
+		let tokens = tokens.unwrap();
+		// only the first whitespace should be tokenized
+		assert_eq!(tokens.len(), 8);
+
+		let tokens = Lexer::tokenize(
+			"string".into(),
+			"\t\t1 + 2\t\t1 + 2".into(),
+		);
+		assert!(tokens.is_ok());
+		let tokens = tokens.unwrap();
+		// only the first tab should be tokenized
+		assert_eq!(tokens.len(), 8);
+
+		let tokens =
+			Lexer::tokenize("string".into(), "     ".into());
+		assert!(tokens.is_ok());
+		let tokens = tokens.unwrap();
+		// no whitespace should be tokenized
+		assert_eq!(tokens.len(), 1);
+
+		let tokens =
+			Lexer::tokenize("string".into(), "\t\t".into());
+		assert!(tokens.is_ok());
+		let tokens = tokens.unwrap();
+		// no whitespace should be tokenized
+		assert_eq!(tokens.len(), 1);
+	}
+
+	#[test]
+	fn test_validate_number_width()
+	{
+		let (valid, ..) =
+			Lexer::new("string".into(), "".into())
+				.validate_number_width("".into(), "f".into());
+		assert!(valid);
+
+		let (valid, ..) =
+			Lexer::new("string".into(), "".into())
+				.validate_number_width("32".into(), "f".into());
+		assert!(valid);
+
+		let (valid, ..) =
+			Lexer::new("string".into(), "".into())
+				.validate_number_width("128".into(), "f".into());
+		assert!(!valid);
+
+		let (valid, ..) =
+			Lexer::new("string".into(), "".into())
+				.validate_number_width("128".into(), "d".into());
+		assert!(!valid);
+
+		let (valid, ..) =
+			Lexer::new("string".into(), "".into())
+				.validate_number_width("".into(), "d".into());
+		assert!(valid);
+
+		let (valid, ..) =
+			Lexer::new("string".into(), "".into())
+				.validate_number_width("32".into(), "d".into());
+		assert!(!valid);
+
+		let (valid, ..) =
+			Lexer::new("string".into(), "".into())
+				.validate_number_width("".into(), "i".into());
+		assert!(valid);
+
+		let (valid, ..) =
+			Lexer::new("string".into(), "".into())
+				.validate_number_width("32".into(), "i".into());
+		assert!(valid);
+
+		let (valid, ..) =
+			Lexer::new("string".into(), "".into())
+				.validate_number_width("128".into(), "i".into());
+		assert!(!valid);
+
+		let (valid, ..) =
+			Lexer::new("string".into(), "".into())
+				.validate_number_width("".into(), "u".into());
+		assert!(valid);
+
+		let (valid, ..) =
+			Lexer::new("string".into(), "".into())
+				.validate_number_width("32".into(), "u".into());
+		assert!(valid);
+
+		let (valid, ..) =
+			Lexer::new("string".into(), "".into())
+				.validate_number_width("128".into(), "u".into());
+		assert!(!valid);
+
+		let (valid, ..) =
+			Lexer::new("string".into(), "".into())
+				.validate_number_width("".into(), "x".into());
+		assert!(!valid);
+	}
+
+	#[test]
 	fn test_number_tokens()
 	{
 		test_scan_indivitual_token!(
 			"0",
-			TokenKind::Literal(super::LiteralToken::Integer(
-				super::IntegerLiteralToken {
-					base: super::NumberBase::Decimal,
-					has_integer_part: true,
-				},
-			),)
+			TokenKind::Literal {
+				kind: super::LiteralTokenKind::Integer(
+					super::IntegerLiteralToken {
+						base: super::NumberBase::Decimal,
+						has_integer_part: true,
+					},
+				),
+				suffix_start: None,
+			}
 		);
 
 		test_scan_indivitual_token!(
 			"0x",
-			TokenKind::Literal(super::LiteralToken::Integer(
-				super::IntegerLiteralToken {
-					base: super::NumberBase::Hexadecimal,
-					has_integer_part: false,
-				},
-			),)
+			TokenKind::Literal {
+				kind: super::LiteralTokenKind::Integer(
+					super::IntegerLiteralToken {
+						base: super::NumberBase::Hexadecimal,
+						has_integer_part: false,
+					},
+				),
+				suffix_start: None,
+			}
 		);
 
 		test_scan_indivitual_token!(
 			"0b",
-			TokenKind::Literal(super::LiteralToken::Integer(
-				super::IntegerLiteralToken {
-					base: super::NumberBase::Binary,
-					has_integer_part: false,
-				},
-			),)
+			TokenKind::Literal {
+				kind: super::LiteralTokenKind::Integer(
+					super::IntegerLiteralToken {
+						base: super::NumberBase::Binary,
+						has_integer_part: false,
+					},
+				),
+				suffix_start: None,
+			}
 		);
 
 		test_scan_indivitual_token!(
 			"0o",
-			TokenKind::Literal(super::LiteralToken::Integer(
-				super::IntegerLiteralToken {
-					base: super::NumberBase::Octal,
-					has_integer_part: false,
-				},
-			),)
+			TokenKind::Literal {
+				kind: super::LiteralTokenKind::Integer(
+					super::IntegerLiteralToken {
+						base: super::NumberBase::Octal,
+						has_integer_part: false,
+					},
+				),
+				suffix_start: None,
+			}
 		);
 
 		test_scan_indivitual_token!(
 			"0x1234",
-			TokenKind::Literal(super::LiteralToken::Integer(
-				super::IntegerLiteralToken {
-					base: super::NumberBase::Hexadecimal,
-					has_integer_part: true,
-				},
-			),)
+			TokenKind::Literal {
+				kind: super::LiteralTokenKind::Integer(
+					super::IntegerLiteralToken {
+						base: super::NumberBase::Hexadecimal,
+						has_integer_part: true,
+					},
+				),
+				suffix_start: None,
+			}
 		);
 
 		test_scan_indivitual_token!(
 			"0b1010",
-			TokenKind::Literal(super::LiteralToken::Integer(
-				super::IntegerLiteralToken {
-					base: super::NumberBase::Binary,
-					has_integer_part: true,
-				},
-			),)
+			TokenKind::Literal {
+				kind: super::LiteralTokenKind::Integer(
+					super::IntegerLiteralToken {
+						base: super::NumberBase::Binary,
+						has_integer_part: true,
+					},
+				),
+				suffix_start: None,
+			}
 		);
 
 		test_scan_indivitual_token!(
 			"0o7654",
-			TokenKind::Literal(super::LiteralToken::Integer(
-				super::IntegerLiteralToken {
-					base: super::NumberBase::Octal,
-					has_integer_part: true,
-				},
-			),)
+			TokenKind::Literal {
+				kind: super::LiteralTokenKind::Integer(
+					super::IntegerLiteralToken {
+						base: super::NumberBase::Octal,
+						has_integer_part: true,
+					},
+				),
+				suffix_start: None,
+			}
 		);
 
 		test_scan_indivitual_token!(
 			"0.0",
-			TokenKind::Literal(super::LiteralToken::Float(
-				super::FloatLiteralToken {
-					base: super::NumberBase::Decimal,
-					has_exponent_part: false,
-				},
-			),)
+			TokenKind::Literal {
+				kind: super::LiteralTokenKind::Float(
+					super::FloatLiteralToken {
+						base: super::NumberBase::Decimal,
+						has_exponent_part: false,
+					},
+				),
+				suffix_start: None,
+			}
 		);
 
 		test_scan_indivitual_token!(
 			"1e2",
-			TokenKind::Literal(super::LiteralToken::Float(
-				super::FloatLiteralToken {
-					base: super::NumberBase::Decimal,
-					has_exponent_part: true,
-				},
-			),)
+			TokenKind::Literal {
+				kind: super::LiteralTokenKind::Float(
+					super::FloatLiteralToken {
+						base: super::NumberBase::Decimal,
+						has_exponent_part: true,
+					},
+				),
+				suffix_start: None,
+			}
 		);
 
 		test_scan_indivitual_token!(
 			"1.0e-12",
-			TokenKind::Literal(super::LiteralToken::Float(
-				super::FloatLiteralToken {
-					base: super::NumberBase::Decimal,
-					has_exponent_part: true,
-				},
-			),)
+			TokenKind::Literal {
+				kind: super::LiteralTokenKind::Float(
+					super::FloatLiteralToken {
+						base: super::NumberBase::Decimal,
+						has_exponent_part: true,
+					},
+				),
+				suffix_start: None,
+			}
 		);
 
 		test_scan_indivitual_token!(
 			"1.0f",
-			TokenKind::Literal(super::LiteralToken::Float(
-				super::FloatLiteralToken {
-					base: super::NumberBase::Decimal,
-					has_exponent_part: false,
-				},
-			),)
+			TokenKind::Literal {
+				kind: super::LiteralTokenKind::Float(
+					super::FloatLiteralToken {
+						base: super::NumberBase::Decimal,
+						has_exponent_part: false,
+					},
+				),
+				suffix_start: Some(super::Position {
+					line: 1,
+					column: 4,
+					offset: 3,
+					char_index: 3,
+				}),
+			}
 		);
 
 		test_scan_indivitual_token!(
 			"1f32",
-			TokenKind::Literal(super::LiteralToken::Integer(
-				super::IntegerLiteralToken {
-					base: super::NumberBase::Decimal,
-					has_integer_part: true,
-				},
-			),)
+			TokenKind::Literal {
+				kind: super::LiteralTokenKind::Integer(
+					super::IntegerLiteralToken {
+						base: super::NumberBase::Decimal,
+						has_integer_part: true,
+					},
+				),
+				suffix_start: Some(super::Position {
+					line: 1,
+					column: 2,
+					offset: 1,
+					char_index: 1,
+				}),
+			}
 		);
 
 		test_scan_indivitual_token!(
 			"1i",
-			TokenKind::Literal(super::LiteralToken::Integer(
-				super::IntegerLiteralToken {
-					base: super::NumberBase::Decimal,
-					has_integer_part: true,
-				},
-			),)
+			TokenKind::Literal {
+				kind: super::LiteralTokenKind::Integer(
+					super::IntegerLiteralToken {
+						base: super::NumberBase::Decimal,
+						has_integer_part: true,
+					},
+				),
+				suffix_start: Some(super::Position {
+					line: 1,
+					column: 2,
+					offset: 1,
+					char_index: 1,
+				}),
+			}
 		);
 
 		test_scan_indivitual_token!(
 			"1u",
-			TokenKind::Literal(super::LiteralToken::Integer(
-				super::IntegerLiteralToken {
-					base: super::NumberBase::Decimal,
-					has_integer_part: true,
-				},
-			),)
+			TokenKind::Literal {
+				kind: super::LiteralTokenKind::Integer(
+					super::IntegerLiteralToken {
+						base: super::NumberBase::Decimal,
+						has_integer_part: true,
+					},
+				),
+				suffix_start: Some(super::Position {
+					line: 1,
+					column: 2,
+					offset: 1,
+					char_index: 1,
+				}),
+			}
 		);
 
 		test_scan_indivitual_token!(
 			"1d",
-			TokenKind::Literal(super::LiteralToken::Integer(
-				super::IntegerLiteralToken {
-					base: super::NumberBase::Decimal,
-					has_integer_part: true,
-				},
-			),)
+			TokenKind::Literal {
+				kind: super::LiteralTokenKind::Integer(
+					super::IntegerLiteralToken {
+						base: super::NumberBase::Decimal,
+						has_integer_part: true,
+					},
+				),
+				suffix_start: Some(super::Position {
+					line: 1,
+					column: 2,
+					offset: 1,
+					char_index: 1,
+				}),
+			}
 		);
 
 		test_scan_indivitual_token!(
 			"1u32",
-			TokenKind::Literal(super::LiteralToken::Integer(
-				super::IntegerLiteralToken {
-					base: super::NumberBase::Decimal,
-					has_integer_part: true,
-				},
-			),)
+			TokenKind::Literal {
+				kind: super::LiteralTokenKind::Integer(
+					super::IntegerLiteralToken {
+						base: super::NumberBase::Decimal,
+						has_integer_part: true,
+					},
+				),
+				suffix_start: Some(super::Position {
+					line: 1,
+					column: 2,
+					offset: 1,
+					char_index: 1,
+				}),
+			}
 		);
 
 		test_scan_indivitual_token!(
 			"1i64",
-			TokenKind::Literal(super::LiteralToken::Integer(
-				super::IntegerLiteralToken {
-					base: super::NumberBase::Decimal,
-					has_integer_part: true,
-				},
-			),)
+			TokenKind::Literal {
+				kind: super::LiteralTokenKind::Integer(
+					super::IntegerLiteralToken {
+						base: super::NumberBase::Decimal,
+						has_integer_part: true,
+					},
+				),
+				suffix_start: Some(super::Position {
+					line: 1,
+					column: 2,
+					offset: 1,
+					char_index: 1,
+				}),
+			}
 		);
 	}
 
@@ -1269,8 +1432,8 @@ mod tests
 		);
 		assert_eq!(error.hint, None);
 		assert_eq!(
-			error.position,
-			super::LexerErrorPosition::Span(super::Span {
+			error.location,
+			super::Location::Span(super::Span {
 				start: super::Position {
 					line: 1,
 					column: 1,
@@ -1305,15 +1468,13 @@ mod tests
 		);
 		assert_eq!(error.hint, None);
 		assert_eq!(
-			error.position,
-			super::LexerErrorPosition::Position(
-				super::Position {
-					line: 1,
-					column: 1,
-					offset: 0,
-					char_index: 0,
-				},
-			)
+			error.location,
+			super::Location::Position(super::Position {
+				line: 1,
+				column: 1,
+				offset: 0,
+				char_index: 0,
+			},)
 		);
 		assert_eq!(error.source_id, "string".to_smolstr());
 	}
@@ -1338,6 +1499,6 @@ mod tests
 		);
 		assert!(tokens.is_ok());
 		let tokens = tokens.unwrap();
-		assert_eq!(tokens.len(), 39);
+		assert_eq!(tokens.len(), 25);
 	}
 }

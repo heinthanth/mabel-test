@@ -485,10 +485,10 @@ where
 			ExitCode::INVALID_INPUT_OR_USAGE
 		}
 		#[cfg(fuzzing)]
-		_ => unreachable!(
-			"unreachable error kind: {:?}",
-			error.kind()
-		),
+		_ =>
+		{
+			panic!("unreachable error kind: {:?}", error.kind())
+		}
 		#[cfg(not(fuzzing))]
 		_ =>
 		{
