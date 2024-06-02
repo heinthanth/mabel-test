@@ -9,7 +9,7 @@ use crate::parser::lexer::Lexer;
 
 pub mod session_globals;
 
-/// Executes the application mode.
+/// Executes the compiler with given mode.
 /// It invoke the lexer, parser and other components based
 /// on the application mode.
 ///
@@ -25,7 +25,7 @@ pub mod session_globals;
 /// # Returns
 ///
 /// The result or an error.
-pub fn invoke_application_mode<'i, I, O, E>(
+pub fn invoke_compiler<'i, I, O, E>(
 	source: Source,
 	session_globals: &mut SessionGlobals<'i, I, O, E>,
 ) -> Result<ExitCode, Error>
