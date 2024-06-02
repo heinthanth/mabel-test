@@ -1,7 +1,4 @@
-#![cfg_attr(
-	all(coverage_nightly, test),
-	feature(coverage_attribute)
-)]
+#![cfg_attr(coverage_nightly, feature(coverage_attribute))]
 
 use std::ffi::OsString;
 use std::io::BufRead;
@@ -34,7 +31,6 @@ fn main()
 /// # Returns
 ///
 /// The exit code.
-#[cfg_attr(coverage_nightly, coverage(off))]
 fn parse_and_run_cli<A, T>(argv: T) -> ExitCode
 where
 	T: IntoIterator<Item = A>,
@@ -109,7 +105,6 @@ fn create_io_streams(
 /// to the CLI.
 // we can't test this function because we can't emulate to
 // reach unreachable!() branch
-#[cfg_attr(coverage_nightly, coverage(off))]
 fn map_subcommand<I, O, E>(
 	matches: ArgMatches,
 	stdin: &mut I,

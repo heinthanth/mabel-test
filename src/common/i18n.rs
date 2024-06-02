@@ -142,10 +142,7 @@ pub fn get_os_locale() -> SystemLocale
 				chrono_locale: Locale::my_MM,
 			}
 		}
-		_ =>
-		{
-			SystemLocale::default()
-		}
+		_ => SystemLocale::default(),
 	}
 }
 

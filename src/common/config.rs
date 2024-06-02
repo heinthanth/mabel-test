@@ -164,7 +164,9 @@ impl Default for GlobalConfig
 /// # Returns
 ///
 /// The `ColorChoice` value.
-pub fn color_choice_from_string(value: String) -> ColorChoice
+pub fn color_choice_from_string(
+	value: String,
+) -> ColorChoice
 {
 	match value.to_lowercase().as_str()
 	{

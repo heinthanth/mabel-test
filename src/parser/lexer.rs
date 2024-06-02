@@ -12,7 +12,7 @@ use unicode_xid::UnicodeXID;
 use super::span::{Position, Span};
 use super::token::{FloatLiteralToken, IntegerLiteralToken, LiteralToken, NumberBase, Token, TokenKind};
 use crate::compiler::session_globals::SessionGlobals;
-use crate::t;
+use crate::{t, ternary};
 
 /// Lexer error code
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -20,6 +20,8 @@ pub enum LexerErrorCode
 {
 	/// Unexpected character
 	UnexpectedCharacter,
+	/// Invalid number width
+	InvalidNumberLiteralWidth,
 	/// Unimplemented feature
 	UnimplementedFeature,
 }
@@ -659,6 +661,49 @@ impl Lexer
 		}
 	}
 
+	/// Check if the number width is valid.
+	/// Depending on the suffix, the width of the number
+	/// should be valid.
+	///
+	/// # Arguments
+	///
+	/// * `width_lexeme` - The width lexeme.
+	/// * `suffix` - The suffix of the number.
+	///
+	/// # Returns
+	///
+	/// A tuple of boolean, vector of possible integer widths,
+	#[cfg_attr(coverage_nightly, coverage(off))]
+	fn validate_number_width(
+		&self,
+		width_lexeme: String,
+		suffix: String,
+	) -> (bool, Vec<&'static str>, Vec<&'static str>)
+	{
+		let int_possible_widths = vec!["8", "16", "32", "64"];
+		let float_possible_widths = vec!["32", "64"];
+
+		let res = match suffix.as_str()
+		{
+			"f" =>
+			{
+				width_lexeme.is_empty()
+					|| float_possible_widths
+						.contains(&width_lexeme.as_str())
+			}
+			"d" => width_lexeme.is_empty(),
+			"i" | "u" =>
+			{
+				width_lexeme.is_empty()
+					|| int_possible_widths
+						.contains(&width_lexeme.as_str())
+			}
+			_ => unreachable!(),
+		};
+
+		(res, int_possible_widths, float_possible_widths)
+	}
+
 	/// Consume the number part of the source code.
 	/// This is used to tokenize integer and float literals.
 	/// The lexer will consume the integer part, fractional
@@ -737,14 +782,76 @@ impl Lexer
 		})
 		{
 			// consume the suffix
-			self.advance();
+			let suffix = self.advance();
+			let suffix_start_pos = self.get_previous_position(1);
 
-			// consume the suffix part like 8, 16, 32, 64
+			// consume the width part like 8, 16, 32, 64
+			// the maximum possible width is 64. But some
+			// languages have 128 bit integers. So, let's keep it
+			// 3.
+			let mut width_lexeme = String::with_capacity(3);
+
 			while self
 				.peek()
 				.map_or(false, |c| is_digit(c, NumberBase::Decimal))
 			{
-				self.advance();
+				width_lexeme.push_str(&self.advance());
+			}
+
+			let (
+				valid_width,
+				int_possible_widths,
+				float_possible_widths,
+			) = self.validate_number_width(
+				width_lexeme.clone(),
+				suffix.clone(),
+			);
+
+			if !valid_width
+			{
+				if suffix.as_str() == "d"
+				{
+					return Err(LexerError {
+						code: LexerErrorCode::InvalidNumberLiteralWidth,
+						message: t!(
+							"lexer-error-invalid-number-literal-width.\
+							 no-width-for-double"
+						),
+						hint: None,
+						position: LexerErrorPosition::Span(Span::new(
+							suffix_start_pos,
+							self.current,
+						)),
+						source_id: self.source_id.clone().into(),
+					});
+				}
+
+				let message = t!(
+					"lexer-error-invalid-number-literal-width",
+					width = json!(width_lexeme).to_string(),
+					literal_kind = ternary!(
+						is_int,
+						t!("common-data-type-desc.int"),
+						t!("common-data-type-desc.float")
+					),
+					valid_widths = ternary!(
+						is_int,
+						int_possible_widths,
+						float_possible_widths
+					)
+					.join(", ")
+				);
+
+				return Err(LexerError {
+					code: LexerErrorCode::InvalidNumberLiteralWidth,
+					message,
+					hint: None,
+					position: LexerErrorPosition::Span(Span::new(
+						suffix_start_pos,
+						self.current,
+					)),
+					source_id: self.source_id.clone().into(),
+				});
 			}
 		}
 
@@ -1069,7 +1176,7 @@ mod tests
 		);
 
 		test_scan_indivitual_token!(
-			"1f",
+			"1f32",
 			TokenKind::Literal(super::LiteralToken::Integer(
 				super::IntegerLiteralToken {
 					base: super::NumberBase::Decimal,
@@ -1127,6 +1234,28 @@ mod tests
 				},
 			),)
 		);
+	}
+
+	#[test]
+	fn test_number_with_invalid_widths()
+	{
+		for literal in &[
+			"1f8", "1f16", "1d8", "1d16", "1d64", "1i12", "32u1",
+			"12.0f60",
+		]
+		{
+			let tokens = Lexer::tokenize(
+				"string".into(),
+				literal.to_owned().to_string(),
+			);
+			assert!(tokens.is_err());
+			let error = tokens.unwrap_err();
+			println!("Error: {:?}", error);
+			assert_eq!(
+				error.code,
+				super::LexerErrorCode::InvalidNumberLiteralWidth
+			);
+		}
 	}
 
 	#[test]
