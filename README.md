@@ -10,6 +10,18 @@ This is the main repo for the WIP Mabel compiler.
 
 For ease of development, there're several [cargo-make](https://github.com/sagiegurari/cargo-make) tasks.
 
+```mermaid
+---
+title: Current Roadmap
+---
+flowchart LR;
+  Start([✅ Lib Frontend]) --> Lexer[✅ Lexer] --> Tokens[(✅ Tokens)] --> Parser[✅ Parser] --> AST[(✅ AST)] --> SemCheck[🚧 Semantic Checker]
+  SemCheck --> Compiler
+  Compiler --> LLVMIR[(LLVM IR)]
+  LLVMIR --> LLVMJIT([JIT Execution Engine])
+  LLVMIR --> Executable([Native Executable])
+```
+
 ### Build and Run
 
 This is equivalent to running `RUSTFLAGS="-Awarnings" cargo run -q -- [...args]`.
