@@ -458,7 +458,7 @@ mod tests
 
 		let path = PathBuf::from(concat!(
 			env!("CARGO_MANIFEST_DIR"),
-			"/tests/scripts/test.mbl"
+			"/tests/hello-world.mbl"
 		));
 		let source = Source::try_from(path.clone());
 

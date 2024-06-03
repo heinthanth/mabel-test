@@ -270,7 +270,7 @@ mod tests
 	{
 		let content = super::read_content_from_path(concat!(
 			env!("CARGO_MANIFEST_DIR"),
-			"/tests/scripts/test.mbl",
+			"/tests/hello-world.mbl",
 		));
 		assert!(content.is_ok());
 		assert_eq!(content.unwrap(), "echo \"Hello, World!\"");
@@ -339,7 +339,7 @@ mod tests
 
 		let path = PathBuf::from(concat!(
 			env!("CARGO_MANIFEST_DIR"),
-			"/tests/scripts/test.mbl",
+			"/tests/hello-world.mbl",
 		));
 		let file_url = path_to_file_url(path.clone());
 
