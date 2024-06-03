@@ -12,7 +12,7 @@ For ease of development, there're several [cargo-make](https://github.com/sagieg
 
 ```mermaid
 ---
-title: Node with text
+title: Current Roadmap
 ---
 graph TB;
     subgraph roadmap[ ]
