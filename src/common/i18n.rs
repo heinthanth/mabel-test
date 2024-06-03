@@ -176,16 +176,18 @@ pub fn get_os_locale() -> SystemLocale
 ///
 /// assert_eq!(value, "Hello, World");
 /// ```
-pub fn lookup(
-	key: &str,
+pub fn lookup<T>(
+	key: T,
 	args: Option<&[(String, FluentValue)]>,
 	default_value: Option<String>,
 ) -> String
+where
+	T: AsRef<str>,
 {
 	LOCALES
 		.try_lookup_with_args(
 			&get_os_locale().langid,
-			key,
+			key.as_ref(),
 			&args
 				.unwrap_or_else(|| &[])
 				.iter()
@@ -193,7 +195,8 @@ pub fn lookup(
 				.collect::<_>(),
 		)
 		.unwrap_or_else(|| {
-			default_value.unwrap_or_else(|| key.to_string())
+			default_value
+				.unwrap_or_else(|| key.as_ref().to_string())
 		})
 }
 

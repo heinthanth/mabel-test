@@ -156,52 +156,52 @@ impl Token
 			{
 				LiteralTokenKind::Integer(_) =>
 				{
-					"token-description-int"
+					"int"
 				}
 				LiteralTokenKind::Float(_) =>
 				{
-					"token-description-float"
+					"float"
 				}
 			},
 			TokenKind::Identifier =>
 			{
-				"token-description-identifier"
+				"identifier"
 			}
 			TokenKind::Add
 			| TokenKind::SubtractOrNegate
 			| TokenKind::Multiply
 			| TokenKind::Divide
 			| TokenKind::Modulo
-			| TokenKind::Exponent => "token-description-operator",
+			| TokenKind::Exponent => "operator",
 			TokenKind::Echo | TokenKind::Function =>
 			{
-				"token-description-keyword"
+				"keyword"
 			}
-			TokenKind::SemiColon => "token-description-semicolon",
-			TokenKind::Colon => "token-description-colon",
+			TokenKind::SemiColon => "semicolon",
+			TokenKind::Colon => "colon",
 			TokenKind::LeftParen =>
 			{
-				"token-description-left-paren"
+				"left-paren"
 			}
 			TokenKind::RightParen =>
 			{
-				"token-description-right-paren"
+				"right-paren"
 			}
 			TokenKind::SingleLineComment =>
 			{
-				"token-description-single-line-comment"
+				"single-line-comment"
 			}
 			TokenKind::Whitespace =>
 			{
-				"token-description-whitespace"
+				"whitespace"
 			}
-			TokenKind::Tab => "token-description-tab",
-			TokenKind::NewLine => "token-description-newline",
-			TokenKind::EndOfInput => "token-description-eoi",
+			TokenKind::Tab => "tab",
+			TokenKind::NewLine => "newline",
+			TokenKind::EndOfInput => "eoi",
 		};
 
 		t!(
-			key,
+			format!("token-description-{key}"),
 			value = json!(
 				value.unwrap_or_else(|| self.lexeme.to_string())
 			)
@@ -319,7 +319,7 @@ mod tests
 		);
 
 		assert_eq!(
-			token.description(1, "lowercase", None, false, false),
+			token.description(1, "lowercase", None, true, false),
 			"an integer literal"
 		);
 
@@ -351,8 +351,8 @@ mod tests
 			SmolStr::new("mabel://stdin"),
 		);
 		assert_eq!(
-			token.description(1, "lowercase", None, false, false),
-			"a float literal"
+			token.description(1, "lowercase", None, true, false),
+			"a floating-point literal"
 		);
 
 		let token = Token::new(
@@ -375,7 +375,7 @@ mod tests
 			SmolStr::new("mabel://stdin"),
 		);
 		assert_eq!(
-			token.description(1, "lowercase", None, false, false),
+			token.description(1, "lowercase", None, true, false),
 			"an identifier"
 		);
 
@@ -399,7 +399,7 @@ mod tests
 			SmolStr::new("mabel://stdin"),
 		);
 		assert_eq!(
-			token.description(1, "lowercase", None, false, false),
+			token.description(1, "lowercase", None, true, false),
 			"an operator"
 		);
 
@@ -423,7 +423,7 @@ mod tests
 			SmolStr::new("mabel://stdin"),
 		);
 		assert_eq!(
-			token.description(1, "lowercase", None, false, false),
+			token.description(1, "lowercase", None, true, false),
 			"a keyword"
 		);
 
@@ -447,7 +447,7 @@ mod tests
 			SmolStr::new("mabel://stdin"),
 		);
 		assert_eq!(
-			token.description(1, "lowercase", None, false, false),
+			token.description(1, "lowercase", None, true, false),
 			"a semicolon"
 		);
 
@@ -471,7 +471,7 @@ mod tests
 			SmolStr::new("mabel://stdin"),
 		);
 		assert_eq!(
-			token.description(1, "lowercase", None, false, false),
+			token.description(1, "lowercase", None, true, false),
 			"a colon"
 		);
 
@@ -495,7 +495,7 @@ mod tests
 			SmolStr::new("mabel://stdin"),
 		);
 		assert_eq!(
-			token.description(1, "lowercase", None, false, false),
+			token.description(1, "lowercase", None, true, false),
 			"a left parenthesis"
 		);
 
@@ -519,7 +519,7 @@ mod tests
 			SmolStr::new("mabel://stdin"),
 		);
 		assert_eq!(
-			token.description(1, "lowercase", None, false, false),
+			token.description(1, "lowercase", None, true, false),
 			"a right parenthesis"
 		);
 
@@ -543,7 +543,7 @@ mod tests
 			SmolStr::new("mabel://stdin"),
 		);
 		assert_eq!(
-			token.description(1, "lowercase", None, false, false),
+			token.description(1, "lowercase", None, true, false),
 			"a single-line comment"
 		);
 
@@ -567,7 +567,7 @@ mod tests
 			SmolStr::new("mabel://stdin"),
 		);
 		assert_eq!(
-			token.description(1, "lowercase", None, false, false),
+			token.description(1, "lowercase", None, true, false),
 			"a whitespace"
 		);
 
@@ -591,7 +591,7 @@ mod tests
 			SmolStr::new("mabel://stdin"),
 		);
 		assert_eq!(
-			token.description(1, "lowercase", None, false, false),
+			token.description(1, "lowercase", None, true, false),
 			"a tab"
 		);
 
@@ -615,7 +615,7 @@ mod tests
 			SmolStr::new("mabel://stdin"),
 		);
 		assert_eq!(
-			token.description(1, "lowercase", None, false, false),
+			token.description(1, "lowercase", None, true, false),
 			"a new line"
 		);
 
@@ -639,7 +639,7 @@ mod tests
 			SmolStr::new("mabel://stdin"),
 		);
 		assert_eq!(
-			token.description(1, "lowercase", None, false, false),
+			token.description(1, "lowercase", None, true, false),
 			"the end of input"
 		);
 	}

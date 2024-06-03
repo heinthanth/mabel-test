@@ -1,5 +1,6 @@
 use std::io::BufRead;
 
+use semantic_checker::SemanticChecker;
 use session_globals::SessionGlobals;
 use smol_str::SmolStr;
 use termcolor::WriteColor;
@@ -9,6 +10,8 @@ use crate::common::{ExitCode, Source};
 use crate::parser::lexer::Lexer;
 use crate::parser::Parser;
 
+pub mod data_type;
+pub mod semantic_checker;
 pub mod session_globals;
 
 /// Executes the compiler with given mode.
@@ -93,7 +96,13 @@ where
 				)
 			})?;
 
-	println!("{:#?}", module);
+	SemanticChecker::check(source_id.clone(), module)
+		.map_err(|error| {
+			Error::new(
+				ErrorKind::SemanticCheckerError(error),
+				ExitCode::SEMANTIC_ERROR,
+			)
+		})?;
 
 	Ok(())
 }

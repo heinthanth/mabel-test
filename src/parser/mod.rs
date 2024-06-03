@@ -716,24 +716,33 @@ impl Parser
 		suffix_start: Option<Position>,
 	) -> ParserResult<ast::Expression>
 	{
+		// 100 + 0x12u32
+		// 2nd lexeme length: 7
+		// suffix start: 10
+		// suffix start relative: 4
+
 		let raw_number_lexeme = parent_token.clone().lexeme;
+		let suffix_start_relative =
+			suffix_start.map(|suffix_start| {
+				suffix_start.offset - parent_token.span.start.offset
+			});
 
 		// remove the suffix from the lexeme
-		let number_lexeme = suffix_start.map_or(
-			raw_number_lexeme.clone(),
-			|suffix_start| {
-				raw_number_lexeme[.. suffix_start.offset].into()
-			},
-		);
+		let number_lexeme = raw_number_lexeme
+			[.. suffix_start_relative
+				.unwrap_or_else(|| raw_number_lexeme.len())]
+			.to_smolstr();
 
 		// get the suffix lexeme
-		let suffix = suffix_start.map(|suffix_start| {
-			raw_number_lexeme[suffix_start.offset ..].to_smolstr()
-		});
+		let suffix = raw_number_lexeme
+			[suffix_start_relative
+				.unwrap_or_else(|| raw_number_lexeme.len()) ..]
+			.to_smolstr();
 
-		let parsed_suffix = suffix.map_or(('i', 0), |suffix| {
-			self.parse_suffix_string(suffix.as_str())
-		});
+		let parsed_suffix = suffix_start_relative
+			.map_or(('i', 0), |_| {
+				self.parse_suffix_string(suffix.as_str())
+			});
 
 		// parse the number with u64 since it's enough to hold
 		// all possible integer values
@@ -849,7 +858,7 @@ impl Parser
 			('f', 64) =>
 			{
 				Ok(ast::Expression::Literal(ast::LiteralExpr {
-					value: ast::Value::Float64(
+					value: ast::Value::Double(
 						number_lexeme_without_prefix.parse().unwrap(),
 					),
 					token: Some(parent_token),
@@ -858,7 +867,7 @@ impl Parser
 			('d', 64) =>
 			{
 				Ok(ast::Expression::Literal(ast::LiteralExpr {
-					value: ast::Value::Float64(
+					value: ast::Value::Double(
 						number_lexeme_without_prefix.parse().unwrap(),
 					),
 					token: Some(parent_token),
@@ -920,7 +929,7 @@ impl Parser
 			('f', 64) =>
 			{
 				Ok(ast::Expression::Literal(ast::LiteralExpr {
-					value: ast::Value::Float64(
+					value: ast::Value::Double(
 						number_lexeme.parse().unwrap(),
 					),
 					token: Some(parent_token),
@@ -929,7 +938,7 @@ impl Parser
 			('d', 64) =>
 			{
 				Ok(ast::Expression::Literal(ast::LiteralExpr {
-					value: ast::Value::Float64(
+					value: ast::Value::Double(
 						number_lexeme.parse().unwrap(),
 					),
 					token: Some(parent_token),

@@ -9,6 +9,7 @@ use std::io::BufRead;
 use termcolor::WriteColor;
 
 use crate::common::ExitCode;
+use crate::compiler::semantic_checker::SemanticCheckerError;
 use crate::compiler::session_globals::SessionGlobals;
 use crate::parser::lexer::LexerError;
 use crate::parser::ParserError;
@@ -61,6 +62,8 @@ pub enum ErrorKind
 	LexerError(LexerError),
 	/// Parser error
 	ParserError(ParserError),
+	/// Semantic Checker error
+	SemanticCheckerError(SemanticCheckerError),
 }
 
 /// An error that might occurred across various parts of the
@@ -125,6 +128,10 @@ impl Error
 			{
 				parser_error.print(session_globals);
 			}
+			ErrorKind::SemanticCheckerError(semantic_error) =>
+			{
+				semantic_error.print(session_globals);
+			}
 		}
 	}
 }
@@ -140,7 +147,7 @@ mod tests
 	use crate::compiler::session_globals::SessionGlobals;
 	use crate::parser::lexer::{LexerError, LexerErrorCode};
 	use crate::parser::span::{Location, Position};
-use crate::parser::ParserError;
+	use crate::parser::ParserError;
 
 	#[serial(lang)]
 	#[test]
@@ -327,7 +334,8 @@ use crate::parser::ParserError;
 		let source_id = source.source_id().unwrap();
 
 		let parser_error = ParserError {
-			code: crate::parser::ParserErrorCode::ExpectedExpression,
+			code:
+				crate::parser::ParserErrorCode::ExpectedExpression,
 			message: "Unexpected token".to_owned(),
 			hint: Some("Check the token".to_owned()),
 			location: Location::Position(Position {
@@ -356,6 +364,44 @@ use crate::parser::ParserError;
 		let error = super::Error::new(
 			super::ErrorKind::ParserError(parser_error),
 			ExitCode::SYNTAX_ERROR,
+		);
+		error.print(&mut session_globals);
+	}
+
+	#[test]
+	fn test_print_semantic_checker_error()
+	{
+		let source =
+			Source::from("1+2").with_origin(SourceOrigin::String);
+		let source_id = source.source_id().unwrap();
+
+		let semantic_error = crate::compiler::semantic_checker::SemanticCheckerError {
+			code: crate::compiler::semantic_checker::SemanticCheckerErrorCode::InvalidOperand,
+			message: "Unknown error".to_owned(),
+			hint: Some("Check the code".to_owned()),
+			labels: vec![],
+			source_id: source_id.clone().into(),
+		};
+
+		let mut stdin = std::io::empty();
+		let mut stdout = Buffer::no_color();
+		let mut stderr = Buffer::no_color();
+		let mut session_globals = SessionGlobals::new(
+			ApplicationMode::Compiler,
+			Config::default(),
+			&mut stdin,
+			&mut stdout,
+			&mut stderr,
+		);
+		session_globals
+			.source_id_map
+			.insert(source_id.clone().into(), source);
+
+		let error = super::Error::new(
+			super::ErrorKind::SemanticCheckerError(
+				semantic_error,
+			),
+			ExitCode::ERROR,
 		);
 		error.print(&mut session_globals);
 	}

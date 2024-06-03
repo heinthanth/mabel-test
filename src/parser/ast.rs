@@ -2,6 +2,7 @@ use smol_str::SmolStr;
 
 use super::span::Span;
 use super::token::Token;
+use crate::compiler::data_type::DataType;
 use crate::ternary;
 
 /// Possible values for the AST
@@ -41,38 +42,9 @@ pub enum Value
 	/// 32-bit floating point
 	Float32(f32),
 	/// 64-bit floating point
-	Float64(f64),
+	Double(f64),
 }
 
-/// Known data types
-#[derive(Debug, Clone)]
-pub enum KnownDataType
-{
-	/// Unsigned 8-bit integer
-	UInt8,
-	/// Unsigned 16-bit integer
-	UInt16,
-	/// Unsigned 32-bit integer
-	UInt32,
-	/// Unsigned 64-bit integer
-	UInt64,
-	/// Signed 8-bit integer
-	Int8,
-	/// Signed 16-bit integer
-	Int16,
-	/// Signed 32-bit integer
-	Int32,
-	/// Signed 64-bit integer
-	Int64,
-	/// Platform-dependent integer
-	Int,
-	/// Platform-dependent unsigned integer
-	UInt,
-	/// 32-bit floating point
-	Float32,
-	/// 64-bit floating point
-	Float64,
-}
 
 /// Trait for getting the span of a node
 pub trait GetSpan
@@ -80,14 +52,36 @@ pub trait GetSpan
 	fn get_span(&self) -> Option<Span>;
 }
 
+
+
 /// Data type node
 #[derive(Debug, Clone)]
-pub struct DataType
+pub struct DataTypeNode
 {
 	/// Data type token
-	pub token: Token,
-	/// Known data type
-	pub known_data_type: Option<KnownDataType>,
+	pub token: Option<Token>,
+	/// Data type inner
+	pub inner: DataType,
+}
+
+#[macro_export]
+macro_rules! ast_known_data_type {
+	($t:ident) => {
+		DataTypeNode {
+			token: None,
+			inner: $crate::compiler::data_type::DataType::Known(
+				crate::compiler::data_type::KnownDataType::$t,
+			),
+		}
+	};
+	($t:ident, $token:expr) => {
+		DataType {
+			token: Some($token),
+			inner: crate::compiler::data_type::DataType::Known(
+				crate::compiler::data_type::KnownDataType::$t,
+			),
+		}
+	};
 }
 
 /// Literal expression node
@@ -307,7 +301,7 @@ pub struct FunctionDeclParameter
 	/// Parameter name
 	pub identifier: Token,
 	/// Parameter type
-	pub data_type: DataType,
+	pub data_type: DataTypeNode,
 }
 
 /// Function declaration statement node

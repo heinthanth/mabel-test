@@ -23,12 +23,12 @@ graph TB;
         end
         subgraph CompilerGraph[ ]
             direction LR
-            SemCheck[🚧 Semantic Checker] --> Compiler
+            SemCheck[✅ Semantic Checker] --> Compiler[🚧 Compiler]
         end
         subgraph LLVMCodeGenGraph[ ]
             direction TB
             LLVMIR{{LLVM IR}} --> JITExecutionEngine[JIT Execution Engine]
-            LLVMIR{{LLVM IR}} --> TargetExecutable[Target Executable]
+            LLVMIR --> TargetExecutable[Target Executable]
         end
         subgraph JsCdoeGenGraph[ ]
             direction TB
