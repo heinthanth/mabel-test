@@ -12,14 +12,33 @@ For ease of development, there're several [cargo-make](https://github.com/sagieg
 
 ```mermaid
 ---
-title: Current Roadmap
+title: Node with text
 ---
-flowchart LR;
-  Start([✅ Lib Frontend]) --> Lexer[✅ Lexer] --> Tokens[(✅ Tokens)] --> Parser[✅ Parser] --> AST[(✅ AST)] --> SemCheck[🚧 Semantic Checker]
-  SemCheck --> Compiler
-  Compiler --> LLVMIR[(LLVM IR)]
-  LLVMIR --> LLVMJIT([JIT Execution Engine])
-  LLVMIR --> Executable([Native Executable])
+graph TB;
+    subgraph roadmap[ ]
+        direction TB
+        subgraph ParserGraph[ ]
+            direction LR
+            Lexer[✅ Lexer] --> Tokens{{✅ Tokens}} --> Parser[✅ Parser] --> AST{{✅ AST}}
+        end
+        subgraph CompilerGraph[ ]
+            direction LR
+            SemCheck[🚧 Semantic Checker] --> Compiler
+        end
+        subgraph LLVMCodeGenGraph[ ]
+            direction TB
+            LLVMIR{{LLVM IR}} --> JITExecutionEngine[JIT Execution Engine]
+            LLVMIR{{LLVM IR}} --> TargetExecutable[Target Executable]
+        end
+        subgraph JsCdoeGenGraph[ ]
+            direction TB
+            JsAst{{JavaScript AST}} --> JavaScript[JavaScript Code]
+        end
+        Start([✅ Lib Frontend]) -->  ParserGraph
+        ParserGraph --> CompilerGraph
+        CompilerGraph --> LLVMCodeGenGraph
+        CompilerGraph --> JsCdoeGenGraph
+    end
 ```
 
 ### Build and Run
