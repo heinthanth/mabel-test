@@ -23,7 +23,8 @@ graph TB;
         end
         subgraph CompilerGraph[ ]
             direction LR
-            SemCheck[✅ Semantic Checker] --> Compiler[🚧 Compiler]
+            SemCheck[✅ Semantic Checker] --> AnnotatedAST{{✅ Annotated AST}}
+            AnnotatedAST --> Compiler[🚧 Compiler]
         end
         subgraph LLVMCodeGenGraph[ ]
             direction TB
@@ -66,14 +67,9 @@ This is equivalent to running `cargo llvm-cov args`. [cargo-llvm-cov](https://gi
 cargo make coverage [...args]
 ```
 
-As of now, the following files are excluded from coverage since it's very inconvenient to write unit test cases.
+As of now, I can't write test cases for all modules since working with AST is very inconvenient given that AST contains kind, token, etc.
 
-- [main.rs](src/main.rs)
-- [compiler/mod.rs](src/compiler/mod.rs)
-- [parser/ast.rs](src/parser/ast.rs)
-- [parser/mod.rs](src/parser/mod.rs)
-
-Those files will be later tested with [mabel source codes](tests/scripts) when, at least, the JIT execution engine is finished.
+Those files will be later tested with [mabel source codes](tests) when, at least, the JIT execution engine is finished.
 
 ## License
 

@@ -10,7 +10,14 @@ use unicode_segmentation::UnicodeSegmentation;
 use unicode_xid::UnicodeXID;
 
 use super::span::{Location, Position, Span};
-use super::token::{FloatLiteralToken, IntegerLiteralToken, LiteralTokenKind, NumberBase, Token, TokenKind};
+use super::token::{
+	FloatLiteralToken,
+	IntegerLiteralToken,
+	LiteralTokenKind,
+	NumberBase,
+	Token,
+	TokenKind,
+};
 use crate::compiler::session_globals::SessionGlobals;
 use crate::{t, ternary};
 

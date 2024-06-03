@@ -5,6 +5,69 @@ use super::token::Token;
 use crate::compiler::data_type::DataType;
 use crate::ternary;
 
+/// Ast Visitor Trait
+pub trait AstVisitor<
+	SourceExprType,
+	SourceStmtType,
+	ModRetType,
+	ExprRetType,
+	StmtRetType,
+> where
+	SourceExprType: GetSpan,
+	SourceStmtType: GetSpan,
+{
+	/// Visit a module node
+	fn visit_module(
+		&mut self,
+		module: &Module<SourceExprType>,
+	) -> ModRetType;
+	/// Visit a statement node
+	fn visit_statement(
+		&mut self,
+		statement: &Statement<SourceExprType>,
+	) -> StmtRetType;
+	/// Visit an expression statement node
+	fn visit_expression_stmt(
+		&mut self,
+		expression_stmt: &ExpressionStmt<SourceExprType>,
+	) -> StmtRetType;
+	/// Visit an echo statement node
+	fn visit_echo_stmt(
+		&mut self,
+		echo_stmt: &EchoStmt<SourceExprType>,
+	) -> StmtRetType;
+	/// Visit a function declaration statement node
+	fn visit_function_decl_stmt(
+		&mut self,
+		function_decl_stmt: &FunctionDeclStmt<SourceStmtType>,
+	) -> StmtRetType;
+	/// Visit an expression node
+	fn visit_expression(
+		&mut self,
+		expression: &Expression,
+	) -> ExprRetType;
+	/// Visit a literal expression node
+	fn visit_literal_expr(
+		&mut self,
+		literal_expr: &LiteralExpr,
+	) -> ExprRetType;
+	/// Visit a grouping expression node
+	fn visit_grouping_expr(
+		&mut self,
+		grouping_expr: &GroupingExpr<SourceExprType>,
+	) -> ExprRetType;
+	/// Visit a unary expression node
+	fn visit_unary_expr(
+		&mut self,
+		unary_expr: &UnaryExpr<SourceExprType>,
+	) -> ExprRetType;
+	/// Visit a binary expression node
+	fn visit_binary_expr(
+		&mut self,
+		binary_expr: &BinaryExpr<SourceExprType>,
+	) -> ExprRetType;
+}
+
 /// Possible values for the AST
 /// This is also primitive types that Mabel could use.
 /// It contains optional values because sometimes the data
@@ -45,14 +108,11 @@ pub enum Value
 	Double(f64),
 }
 
-
 /// Trait for getting the span of a node
 pub trait GetSpan
 {
 	fn get_span(&self) -> Option<Span>;
 }
-
-
 
 /// Data type node
 #[derive(Debug, Clone)]
@@ -64,25 +124,25 @@ pub struct DataTypeNode
 	pub inner: DataType,
 }
 
-#[macro_export]
-macro_rules! ast_known_data_type {
-	($t:ident) => {
-		DataTypeNode {
-			token: None,
-			inner: $crate::compiler::data_type::DataType::Known(
-				crate::compiler::data_type::KnownDataType::$t,
-			),
-		}
-	};
-	($t:ident, $token:expr) => {
-		DataType {
-			token: Some($token),
-			inner: crate::compiler::data_type::DataType::Known(
-				crate::compiler::data_type::KnownDataType::$t,
-			),
-		}
-	};
-}
+// #[macro_export]
+// macro_rules! ast_known_data_type {
+// 	($t:ident) => {
+// 		DataTypeNode {
+// 			token: None,
+// 			inner: $crate::compiler::data_type::DataType::Known(
+// 				crate::compiler::data_type::KnownDataType::$t,
+// 			),
+// 		}
+// 	};
+// 	($t:ident, $token:expr) => {
+// 		DataType {
+// 			token: Some($token),
+// 			inner: crate::compiler::data_type::DataType::Known(
+// 				crate::compiler::data_type::KnownDataType::$t,
+// 			),
+// 		}
+// 	};
+// }
 
 /// Literal expression node
 #[derive(Debug, Clone)]
@@ -105,18 +165,22 @@ impl GetSpan for LiteralExpr
 
 /// Grouping expression node
 #[derive(Debug, Clone)]
-pub struct GroupingExpr
+pub struct GroupingExpr<E>
+where
+	E: GetSpan,
 {
 	/// Left parenthesis
 	pub left_paren_token: Option<Token>,
 	/// Expression inside the grouping
-	pub expression: Box<Expression>,
+	pub expression: Box<E>,
 	/// Right parenthesis
 	pub right_paren_token: Option<Token>,
 }
 
 /// `GetSpan` implementation for `GroupingExpr`
-impl GetSpan for GroupingExpr
+impl<E> GetSpan for GroupingExpr<E>
+where
+	E: GetSpan,
 {
 	fn get_span(&self) -> Option<Span>
 	{
@@ -150,18 +214,22 @@ pub enum UnaryOperator
 
 /// Unary expression node
 #[derive(Debug, Clone)]
-pub struct UnaryExpr
+pub struct UnaryExpr<E>
+where
+	E: GetSpan,
 {
 	/// Operator
 	pub operator: UnaryOperator,
 	/// Operator token
 	pub operator_token: Option<Token>,
 	/// Right-hand side expression
-	pub right: Box<Expression>,
+	pub right: Box<E>,
 }
 
 /// `GetSpan` implementation for `UnaryExpr`
-impl GetSpan for UnaryExpr
+impl<E> GetSpan for UnaryExpr<E>
+where
+	E: GetSpan,
 {
 	fn get_span(&self) -> Option<Span>
 	{
@@ -201,20 +269,24 @@ pub enum BinaryOperator
 
 /// Binary expression node
 #[derive(Debug, Clone)]
-pub struct BinaryExpr
+pub struct BinaryExpr<E>
+where
+	E: GetSpan,
 {
 	/// Left-hand side expression
-	pub left: Box<Expression>,
+	pub left: Box<E>,
 	/// Operator
 	pub operator: BinaryOperator,
 	/// Operator token
 	pub operator_token: Option<Token>,
 	/// Right-hand side expression
-	pub right: Box<Expression>,
+	pub right: Box<E>,
 }
 
 /// `GetSpan` implementation for `BinaryExpr`
-impl GetSpan for BinaryExpr
+impl<E> GetSpan for BinaryExpr<E>
+where
+	E: GetSpan,
 {
 	fn get_span(&self) -> Option<Span>
 	{
@@ -241,11 +313,11 @@ pub enum Expression
 	/// Literal expression
 	Literal(LiteralExpr),
 	/// Grouping expression
-	Grouping(GroupingExpr),
+	Grouping(GroupingExpr<Expression>),
 	/// Unary expression
-	Unary(UnaryExpr),
+	Unary(UnaryExpr<Expression>),
 	/// Binary expression
-	Binary(BinaryExpr),
+	Binary(BinaryExpr<Expression>),
 }
 
 /// `GetSpan` implementation for `Expression`
@@ -265,16 +337,41 @@ impl GetSpan for Expression
 
 /// Echo statement node
 #[derive(Debug, Clone)]
-pub struct EchoStmt
+pub struct ExpressionStmt<E>
+where
+	E: GetSpan,
+{
+	/// Expression to echo
+	pub expression: E,
+}
+
+/// `GetSpan` implementation for `ExpressionStmt`
+impl<E> GetSpan for ExpressionStmt<E>
+where
+	E: GetSpan,
+{
+	fn get_span(&self) -> Option<Span>
+	{
+		self.expression.get_span()
+	}
+}
+
+/// Echo statement node
+#[derive(Debug, Clone)]
+pub struct EchoStmt<E>
+where
+	E: GetSpan,
 {
 	/// Echo keyword
 	pub echo_token: Option<Token>,
 	/// Expression to echo
-	pub expression: Expression,
+	pub expression: E,
 }
 
 /// `GetSpan` implementation for `EchoStmt`
-impl GetSpan for EchoStmt
+impl<E> GetSpan for EchoStmt<E>
+where
+	E: GetSpan,
 {
 	fn get_span(&self) -> Option<Span>
 	{
@@ -306,7 +403,9 @@ pub struct FunctionDeclParameter
 
 /// Function declaration statement node
 #[derive(Debug, Clone)]
-pub struct FunctionDeclStmt
+pub struct FunctionDeclStmt<S>
+where
+	S: GetSpan,
 {
 	/// Function keyword
 	pub function_token: Option<Token>,
@@ -319,11 +418,13 @@ pub struct FunctionDeclStmt
 	/// Right parenthesis
 	pub right_paren_token: Option<Token>,
 	/// Function body
-	pub body: Vec<Box<Statement>>,
+	pub body: Vec<Box<S>>,
 }
 
 /// `GetSpan` implementation for `FunctionDeclStmt`
-impl GetSpan for FunctionDeclStmt
+impl<S> GetSpan for FunctionDeclStmt<S>
+where
+	S: GetSpan,
 {
 	fn get_span(&self) -> Option<Span>
 	{
@@ -349,20 +450,24 @@ impl GetSpan for FunctionDeclStmt
 
 /// Statement node
 #[derive(Debug, Clone)]
-pub enum Statement
+pub enum Statement<E>
+where
+	E: GetSpan,
 {
 	/// Expression statement
-	Expression(Expression),
+	Expression(ExpressionStmt<E>),
 	/// Echo statement
-	Echo(EchoStmt),
+	Echo(EchoStmt<E>),
 	/// Function declaration statement
-	FunctionDeclaration(FunctionDeclStmt),
+	FunctionDeclaration(FunctionDeclStmt<Statement<E>>),
 }
 
-impl Statement
+impl<E> GetSpan for Statement<E>
+where
+	E: GetSpan,
 {
 	/// Get span of the statement
-	pub fn get_span(&self) -> Option<Span>
+	fn get_span(&self) -> Option<Span>
 	{
 		match self
 		{
@@ -378,15 +483,19 @@ impl Statement
 
 /// Module node
 #[derive(Debug, Clone)]
-pub struct Module
+pub struct Module<E>
+where
+	E: GetSpan,
 {
 	pub id: SmolStr,
 	/// Statements in the module
-	pub statements: Vec<Box<Statement>>,
+	pub statements: Vec<Box<Statement<E>>>,
 }
 
 /// `GetSpan` implementation for `Module`
-impl GetSpan for Module
+impl<E> GetSpan for Module<E>
+where
+	E: GetSpan,
 {
 	fn get_span(&self) -> Option<Span>
 	{

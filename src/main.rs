@@ -6,9 +6,17 @@ use std::path::PathBuf;
 
 use clap::ArgMatches;
 use mabel::clap_utils::{handle_clap_error, new_clap_app};
-use mabel::common::config::{color_choice_from_string, ApplicationMode, Config};
+use mabel::common::config::{
+	color_choice_from_string,
+	ApplicationMode,
+	Config,
+};
 use mabel::common::error::Error;
-use mabel::common::utils::{is_color_output_disabled, is_color_output_force_enabled, read_content_from_buf_reader};
+use mabel::common::utils::{
+	is_color_output_disabled,
+	is_color_output_force_enabled,
+	read_content_from_buf_reader,
+};
 use mabel::common::{ExitCode, Source, SourceOrigin};
 use mabel::compiler::invoke_compiler;
 use mabel::compiler::session_globals::SessionGlobals;

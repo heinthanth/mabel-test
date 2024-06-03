@@ -10,6 +10,7 @@ use crate::common::{ExitCode, Source};
 use crate::parser::lexer::Lexer;
 use crate::parser::Parser;
 
+pub mod annotated_ast;
 pub mod data_type;
 pub mod semantic_checker;
 pub mod session_globals;
@@ -96,7 +97,7 @@ where
 				)
 			})?;
 
-	SemanticChecker::check(source_id.clone(), module)
+	let annotated_module = SemanticChecker::check(source_id.clone(), module)
 		.map_err(|error| {
 			Error::new(
 				ErrorKind::SemanticCheckerError(error),
@@ -104,5 +105,6 @@ where
 			)
 		})?;
 
+	println!("{:#?}", annotated_module);
 	Ok(())
 }

@@ -5,7 +5,7 @@ alias = "llvm-cov"
 [tasks.llvm-cov]
 workspace = false
 command = "cargo"
-args = ["llvm-cov", "--ignore-filename-regex", "main|compiler/mod|compiler/semantic_checker|parser/mod|parser/ast", "${@}"]
+args = ["llvm-cov", "${@}"]
 
 [tasks.test]
 workspace = false

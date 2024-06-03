@@ -317,7 +317,11 @@ mod tests
 	use coverage_helper::test;
 	use termcolor::ColorChoice;
 
-	use crate::common::config::{ApplicationMode, Config, InnerConfig};
+	use crate::common::config::{
+		ApplicationMode,
+		Config,
+		InnerConfig,
+	};
 	use crate::get_enum_variant;
 
 	#[test]

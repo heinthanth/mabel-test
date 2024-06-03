@@ -1,6 +1,7 @@
 use std::io::BufRead;
 use std::ops::Range;
 
+use ast::Expression;
 use codespan_reporting::diagnostic::{Diagnostic, Label};
 use codespan_reporting::files::SimpleFiles;
 use num_derive::FromPrimitive;
@@ -8,9 +9,17 @@ use num_traits::FromPrimitive;
 use smol_str::{SmolStr, ToSmolStr};
 use span::{Location, Position};
 use termcolor::WriteColor;
-use token::{FloatLiteralToken, IntegerLiteralToken, LiteralTokenKind, NumberBase, Token, TokenKind};
+use token::{
+	FloatLiteralToken,
+	IntegerLiteralToken,
+	LiteralTokenKind,
+	NumberBase,
+	Token,
+	TokenKind,
+};
 
 use crate::compiler::session_globals::SessionGlobals;
+use crate::parser::ast::GetSpan;
 use crate::ternary;
 
 pub mod ast;
@@ -211,7 +220,7 @@ impl Parser
 		source_id: SmolStr,
 		is_main_module: bool,
 		tokens: Vec<Token>,
-	) -> ParserResult<ast::Module>
+	) -> ParserResult<ast::Module<Expression>>
 	{
 		let mut parser =
 			Parser::new(tokens, source_id, is_main_module);
@@ -219,7 +228,9 @@ impl Parser
 	}
 
 	/// Parses a module.
-	fn parse_module(&mut self) -> ParserResult<ast::Module>
+	fn parse_module(
+		&mut self,
+	) -> ParserResult<ast::Module<Expression>>
 	{
 		// eliminate leading new lines
 		self.consume_newlines();
@@ -277,7 +288,7 @@ impl Parser
 	/// Parses statements.
 	fn parse_statements(
 		&mut self,
-	) -> ParserResult<Vec<Box<ast::Statement>>>
+	) -> ParserResult<Vec<Box<ast::Statement<Expression>>>>
 	{
 		let mut statements = Vec::new();
 		while !self.is_eoi()
@@ -300,7 +311,7 @@ impl Parser
 	/// Parses a statement.
 	fn parse_statement(
 		&mut self,
-	) -> ParserResult<Vec<Box<ast::Statement>>>
+	) -> ParserResult<Vec<Box<ast::Statement<Expression>>>>
 	{
 		let stmts = self.parse_simple_stmts()?;
 		// new line acts like a statement terminator
@@ -311,7 +322,7 @@ impl Parser
 	/// Parses simple statements.
 	fn parse_simple_stmts(
 		&mut self,
-	) -> ParserResult<Vec<Box<ast::Statement>>>
+	) -> ParserResult<Vec<Box<ast::Statement<Expression>>>>
 	{
 		let stmt = self.parse_simple_stmt()?;
 		Ok(vec![stmt])
@@ -320,7 +331,7 @@ impl Parser
 	/// Parses a simple statement.
 	fn parse_simple_stmt(
 		&mut self,
-	) -> ParserResult<Box<ast::Statement>>
+	) -> ParserResult<Box<ast::Statement<Expression>>>
 	{
 		if self.match_and_consume(TokenKind::Echo)
 		{
@@ -384,7 +395,7 @@ impl Parser
 	/// Parses an echo statement.
 	fn parse_echo_stmt(
 		&mut self,
-	) -> ParserResult<Box<ast::Statement>>
+	) -> ParserResult<Box<ast::Statement<Expression>>>
 	{
 		let echo_token = self.previous();
 		let expression = self.parse_expression()?;
@@ -398,11 +409,13 @@ impl Parser
 	/// Parses an expression statement.
 	fn parse_expression_stmt(
 		&mut self,
-	) -> ParserResult<Box<ast::Statement>>
+	) -> ParserResult<Box<ast::Statement<Expression>>>
 	{
 		let expression = self.parse_expression()?;
 
-		Ok(Box::new(ast::Statement::Expression(expression)))
+		Ok(Box::new(ast::Statement::Expression(
+			ast::ExpressionStmt { expression },
+		)))
 	}
 
 	/// Parses an expression.

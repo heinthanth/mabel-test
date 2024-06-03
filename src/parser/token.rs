@@ -154,47 +154,23 @@ impl Token
 		{
 			TokenKind::Literal { kind, .. } => match kind
 			{
-				LiteralTokenKind::Integer(_) =>
-				{
-					"int"
-				}
-				LiteralTokenKind::Float(_) =>
-				{
-					"float"
-				}
+				LiteralTokenKind::Integer(_) => "int",
+				LiteralTokenKind::Float(_) => "float",
 			},
-			TokenKind::Identifier =>
-			{
-				"identifier"
-			}
+			TokenKind::Identifier => "identifier",
 			TokenKind::Add
 			| TokenKind::SubtractOrNegate
 			| TokenKind::Multiply
 			| TokenKind::Divide
 			| TokenKind::Modulo
 			| TokenKind::Exponent => "operator",
-			TokenKind::Echo | TokenKind::Function =>
-			{
-				"keyword"
-			}
+			TokenKind::Echo | TokenKind::Function => "keyword",
 			TokenKind::SemiColon => "semicolon",
 			TokenKind::Colon => "colon",
-			TokenKind::LeftParen =>
-			{
-				"left-paren"
-			}
-			TokenKind::RightParen =>
-			{
-				"right-paren"
-			}
-			TokenKind::SingleLineComment =>
-			{
-				"single-line-comment"
-			}
-			TokenKind::Whitespace =>
-			{
-				"whitespace"
-			}
+			TokenKind::LeftParen => "left-paren",
+			TokenKind::RightParen => "right-paren",
+			TokenKind::SingleLineComment => "single-line-comment",
+			TokenKind::Whitespace => "whitespace",
 			TokenKind::Tab => "tab",
 			TokenKind::NewLine => "newline",
 			TokenKind::EndOfInput => "eoi",
@@ -325,12 +301,10 @@ mod tests
 
 		let token = Token::new(
 			TokenKind::Literal {
-				kind: LiteralTokenKind::Float(
-					FloatLiteralToken {
-						base: NumberBase::Decimal,
-						has_exponent_part: false,
-					},
-				),
+				kind: LiteralTokenKind::Float(FloatLiteralToken {
+					base: NumberBase::Decimal,
+					has_exponent_part: false,
+				}),
 				suffix_start: None,
 			},
 			Span::new(

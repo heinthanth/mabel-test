@@ -5,7 +5,13 @@
 //! subcommands.
 
 use clap::error::{ContextKind, ErrorKind};
-use clap::{crate_authors, crate_version, Arg, ArgAction, Command};
+use clap::{
+	crate_authors,
+	crate_version,
+	Arg,
+	ArgAction,
+	Command,
+};
 use termcolor::WriteColor;
 
 use crate::common::config::CompilerBackend;
