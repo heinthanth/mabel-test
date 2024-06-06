@@ -2,7 +2,6 @@
 
 [![CI](https://github.com/heinthanth/mabel/actions/workflows/ci.yaml/badge.svg?branch=main)](https://github.com/heinthanth/mabel/actions/workflows/ci.yaml)
 [![codecov](https://codecov.io/gh/heinthanth/mabel/branch/main/graph/badge.svg?token=L4P15DZ1UM)](https://codecov.io/gh/heinthanth/mabel)
-![Rust LOC](https://tokei.rs/b1/github/heinthanth/mabel?category=code&type=Rust&label=Lines%20of%20Rust%20Code&color=FF281C1C&logo=https://raw.githubusercontent.com/PKief/vscode-material-icon-theme/main/icons/rust.svg)
 
 This is the main repo for the WIP Mabel compiler.
 
