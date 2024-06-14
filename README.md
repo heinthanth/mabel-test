@@ -1,8 +1,5 @@
 # The Mabel Compiler
 
-[![CI](https://github.com/heinthanth/mabel/actions/workflows/ci.yaml/badge.svg?branch=main)](https://github.com/heinthanth/mabel/actions/workflows/ci.yaml)
-[![codecov](https://codecov.io/gh/heinthanth/mabel/branch/main/graph/badge.svg?token=L4P15DZ1UM)](https://codecov.io/gh/heinthanth/mabel)
-
 This is the main repo for the WIP Mabel compiler.
 
 ## Development
